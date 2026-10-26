@@ -10,30 +10,39 @@
 // =====================================================
 
 
-// ----- 1. 지역 (인생 단계) -----
-// pool : 이 지역에서 어떤 이야기 묶음(events)을 쓸지
+// ----- 1. 나이대 (중간점검 할 때 써요) -----
+const stages = [
+  "👶 아기", "🧸 유아", "🎒 유치원", "🏫 초등학생", "📘 중학생",
+  "📝 고등학생", "🎓 대학·사회 첫걸음", "🏙️ 성인 초반", "🏡 성인 후반", "🏝️ 황혼기"
+];
+
+
+// ----- 2. 지역 (인생 단계) -----
+// pool  : 이 지역에서 어떤 이야기 묶음(events)을 쓸지
+// stage : 나이대 번호 (위 stages 의 몇 번째)
+// adult : true 면 성인 (미니게임 보상이 능력치 → 돈으로 바뀜)
 const areas = {
-  baby:     { name: "👶 아기",           pool: "baby",    story: "응애! 세상에 태어났어요." },
-  toddler:  { name: "🧸 유아",           pool: "baby",    story: "아장아장, 세상 모든 게 신기해요!" },
-  kinder:   { name: "🎒 유치원",         pool: "kinder",  story: "처음으로 친구들을 만났어요." },
-  elem:     { name: "🏫 초등학교",       pool: "elem",    story: "책가방을 메고 초등학교 입학!" },
-  academy:  { name: "✏️ 학원 길",        pool: "elem",    story: "학원 뺑뺑이... 힘들지만 머리가 좋아져요." },
-  play:     { name: "⚽ 운동장 길",      pool: "elem",    story: "해 질 때까지 뛰어놀며 튼튼해져요!" },
-  middle:   { name: "📘 중학교",         pool: "middle",  story: "사춘기가 찾아왔다..." },
-  high:     { name: "📝 고등학교",       pool: "high",    story: "수능까지 D-1000!" },
-  college:  { name: "🎓 대학교",         pool: "college", story: "꿈에 그리던 캠퍼스 라이프!" },
-  work:     { name: "💼 바로 취업",      pool: "college", story: "남들보다 한 발 먼저 사회로!" },
-  young:    { name: "🏙️ 성인 초반",      pool: "young",   story: "진짜 어른의 삶이 시작됐어요." },
-  lovepath: { name: "💕 연애 집중 길",   pool: "young",   story: "사랑을 찾아 떠나는 길!" },
-  workpath: { name: "💼 일 집중 길",     pool: "young",   story: "일에 모든 걸 건다!" },
-  late:     { name: "🏡 성인 후반",      pool: "late",    story: "가족과 집을 지키는 든든한 어른." },
-  senior:   { name: "🏝️ 황혼기",         pool: "senior",  story: "은퇴 후, 인생 2막이 시작됐어요." },
-  sea:      { name: "🌊 평온한 바닷길",  pool: "senior",  story: "여유롭게 바다를 따라 걸어요." },
-  gamble:   { name: "🎰 한방역전섬",     pool: "gamble",  story: "인생 마지막 한 방! 대박 아니면 쪽박!" }
+  baby:     { name: "👶 아기",           pool: "baby",    stage: 0, story: "응애! 세상에 태어났어요." },
+  toddler:  { name: "🧸 유아",           pool: "baby",    stage: 1, story: "아장아장, 세상 모든 게 신기해요!" },
+  kinder:   { name: "🎒 유치원",         pool: "kinder",  stage: 2, story: "처음으로 친구들을 만났어요." },
+  elem:     { name: "🏫 초등학교",       pool: "elem",    stage: 3, story: "책가방을 메고 초등학교 입학!" },
+  academy:  { name: "✏️ 학원 길",        pool: "elem",    stage: 3, story: "학원 뺑뺑이... 힘들지만 머리가 좋아져요." },
+  play:     { name: "⚽ 운동장 길",      pool: "elem",    stage: 3, story: "해 질 때까지 뛰어놀며 튼튼해져요!" },
+  middle:   { name: "📘 중학교",         pool: "middle",  stage: 4, story: "사춘기가 찾아왔다..." },
+  high:     { name: "📝 고등학교",       pool: "high",    stage: 5, story: "수능까지 D-1000!" },
+  college:  { name: "🎓 대학교",         pool: "college", stage: 6, story: "꿈에 그리던 캠퍼스 라이프!", adult: true },
+  work:     { name: "💼 바로 취업",      pool: "college", stage: 6, story: "남들보다 한 발 먼저 사회로!", adult: true },
+  young:    { name: "🏙️ 성인 초반",      pool: "young",   stage: 7, story: "진짜 어른의 삶이 시작됐어요.", adult: true },
+  lovepath: { name: "💕 연애 집중 길",   pool: "young",   stage: 7, story: "사랑을 찾아 떠나는 길!", adult: true },
+  workpath: { name: "💼 일 집중 길",     pool: "young",   stage: 7, story: "일에 모든 걸 건다!", adult: true },
+  late:     { name: "🏡 성인 후반",      pool: "late",    stage: 8, story: "가족과 집을 지키는 든든한 어른.", adult: true },
+  senior:   { name: "🏝️ 황혼기",         pool: "senior",  stage: 9, story: "은퇴 후, 인생 2막이 시작됐어요.", adult: true },
+  sea:      { name: "🌊 평온한 바닷길",  pool: "senior",  stage: 9, story: "여유롭게 바다를 따라 걸어요.", adult: true },
+  gamble:   { name: "🎰 한방역전섬",     pool: "gamble",  stage: 9, story: "인생 마지막 한 방! 대박 아니면 쪽박!", adult: true }
 };
 
 
-// ----- 2. 재능 (유아 시절에 하나 받음 → 그 능력치는 2배로 오름) -----
+// ----- 3. 재능 (유아 시절에 하나 받음 → 그 능력치는 2배로 오름) -----
 const talents = [
   { key: "int",   name: "🧠 지력", text: "책을 거꾸로 들고도 읽는 천재 아기!" },
   { key: "str",   name: "💪 체력", text: "기저귀 차고 달리기 1등!" },
@@ -41,7 +50,7 @@ const talents = [
 ];
 
 
-// ----- 3. 숫자 카드 (룰렛 대신 사용, min~max 사이에서 이동) -----
+// ----- 4. 숫자 카드 (룰렛 대신 사용, min~max 사이에서 이동) -----
 const numberCards = [
   { name: "🐢 거북이 카드", min: 1, max: 3 },
   { name: "🚶 산책 카드",   min: 4, max: 6 },
@@ -50,7 +59,7 @@ const numberCards = [
 ];
 
 
-// ----- 4. 갈림길 -----
+// ----- 5. 갈림길 -----
 // routes 순서 = 지도(map.js)의 next 순서
 const forks = {
   f0: {
@@ -88,7 +97,7 @@ const forks = {
 };
 
 
-// ----- 5. 인생 이벤트 칸 (무조건 멈추는 칸) -----
+// ----- 6. 인생 이벤트 칸 (무조건 멈추는 칸) -----
 // talent, exam, college, job, house, retire 는 script.js 에서 특별 처리
 const lifeEvents = {
   talent:  { label: "재능 발견",     title: "🌟 재능 발견!",     text: "어떤 재능을 타고났을까요?" },
@@ -104,7 +113,7 @@ const lifeEvents = {
 };
 
 
-// ----- 6. 직업 (등급이 오를수록 월급 UP, need = 필요한 최소 능력치) -----
+// ----- 7. 직업 (등급이 오를수록 월급 UP, need = 필요한 최소 능력치) -----
 const jobs = [
   { name: "의사", college: true, grades: [
     { title: "인턴",     salary: 500,  need: { int: 12 } },
@@ -141,7 +150,7 @@ const jobs = [
 ];
 
 
-// ----- 7. 연애 상대 (내 직업 등급이 높을수록 좋은 상대가 나와요) -----
+// ----- 8. 연애 상대 (내 직업 등급이 높을수록 좋은 상대가 나와요) -----
 // [0] 직업 없음/1등급  [1] 2등급  [2] 3등급
 // salary : 결혼하면 월급날마다 같이 들어오는 돈
 const partners = [
@@ -172,7 +181,7 @@ const dates = [
 ];
 
 
-// ----- 8. 직업 칸(★) 이벤트 (능력치가 오르고, 조건이 되면 승진!) -----
+// ----- 9. 직업 칸(★) 이벤트 (능력치가 오르고, 조건이 되면 승진!) -----
 const workEvents = [
   { text: "밤새 야근을 했어요...", str: 1, money: 100 },
   { text: "중요한 발표를 맡았어요!", sense: 2 },
@@ -182,7 +191,7 @@ const workEvents = [
 ];
 
 
-// ----- 9. 집 -----
+// ----- 10. 집 -----
 const houses = [
   { name: "작은 아파트",   price: 2000, sell: 3000 },
   { name: "전원주택",      price: 4000, sell: 6000 },
@@ -190,7 +199,7 @@ const houses = [
 ];
 
 
-// ----- 10. 칸에서 일어나는 이야기 -----
+// ----- 11. 칸에서 일어나는 이야기 -----
 // good 좋은 일 / bad 나쁜 일 / normal 보통 / event 선택 이벤트
 // event 의 choices : chance 는 성공 확률 (1 = 무조건 성공, 운세가 높으면 UP)
 const events = {

@@ -7,7 +7,11 @@ for (const d of ["characters", "tiles", "ui"]) fs.mkdirSync(path.join(assets, d)
 const save = (p, s) => fs.writeFileSync(path.join(assets, p), s, "utf8");
 const EMOJI = 'font-family="Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif"';
 
-const W = 2300, H = 1540;
+// 지도 크기 배율 (구간을 길게 하려고 지도 전체를 키움)
+const SCALE = 2.6;
+const W = Math.round(2300 * SCALE), H = Math.round(1540 * SCALE);
+// 칸 사이 간격 (px). 칸이 많은 구간은 길이 구불구불해져서 이 간격을 맞춰요
+const SPACING = 95;
 
 // ---------------- 지도 설계 ----------------
 const A = {
@@ -28,26 +32,91 @@ const A = {
   GOAL: { p: [160, 1260], type: "goal", area: "senior" },
 };
 const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card";
+
+// pattern 을 반복해서 n 칸짜리 목록 만들기
+function fill(n, pattern) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(pattern[i % pattern.length]);
+  return out;
+}
+const CHILD = [N, G, E, B, N, G, C, B, E, G];        // 어린 시절 (월급 없음)
+const STUDENT = [N, E, G, LV, B, N, G, C, E, LV];    // 대학 / 취업 준비
+
+// 나이대마다 25칸 이상 (갈림길은 짧은 길 기준)
+// wave : 길이 휘어지는 방향 (1 또는 -1)
 const segs = [
-  { name: "아기", from: "START", to: "WALK", via: [], area: "baby", types: [N, G, C, N] },
-  { name: "유아", from: "WALK", to: "KINDER", via: [[750, 150]], area: "toddler", types: [N, G, E, B, N] },
-  { name: "유치원", from: "KINDER", to: "ELEM", via: [[1210, 250]], area: "kinder", types: [G, N, E, B, C] },
-  { name: "초등학교", from: "ELEM", to: "F0", via: [], area: "elem", types: [N, G] },
-  { name: "초등학교 - 학원 길", from: "F0", to: "MIDDLE", via: [[1900, 130], [2180, 330]], area: "academy", types: [E, N, B, G, N, C, G, N] },
-  { name: "초등학교 - 운동장 길", from: "F0", to: "MIDDLE", via: [[1800, 420]], area: "play", types: [G, N, E, G] },
-  { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[1750, 520]], area: "middle", types: [N, G, E, B, C, G] },
-  { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", types: [N, B, E, G, N, "L:exam"] },
-  { name: "대학교 길", from: "F1", to: "JOB", via: [[480, 480], [200, 620]], area: "college", types: ["L:college", N, E, G, LV, N, G, E] },
-  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[500, 800]], area: "work", types: [N, B, G, E, C] },
-  { name: "성인 초반", from: "JOB", to: "F2", via: [[650, 880], [1000, 1000]], area: "young", types: [P, WK, LV, B, E, P, N, WK, LV, B, P, C] },
-  { name: "성인 초반 - 연애 집중 길", from: "F2", to: "HOUSE", via: [[1680, 830]], area: "lovepath", types: [LV, P, LV, G, LV, P, LV] },
-  { name: "성인 초반 - 일 집중 길", from: "F2", to: "HOUSE", via: [[1680, 1080]], area: "workpath", types: [WK, G, WK, P, WK, E] },
-  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", types: [P, LV, G, B, E, P, WK, B, C] },
-  { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", types: [N] },
-  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", types: [G, N, E, G, LV, G] },
-  { name: "황혼기 - 한방역전섬", from: "F3", to: "SJOIN", via: [[970, 1180]], area: "gamble", types: [E, E, E, E] },
-  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", types: [N, G, E, B, N, P] },
+  { name: "아기", from: "START", to: "WALK", via: [], area: "baby", wave: 1, types: fill(24, CHILD) },
+  { name: "유아", from: "WALK", to: "KINDER", via: [[750, 150]], area: "toddler", wave: -1, types: fill(24, [G, N, B, E, C, N, G, E, B, N]) },
+  { name: "유치원", from: "KINDER", to: "ELEM", via: [[1210, 250]], area: "kinder", wave: 1, types: fill(24, [E, G, N, B, G, C, N, E, B, G]) },
+  { name: "초등학교", from: "ELEM", to: "F0", via: [], area: "elem", wave: -1, types: fill(6, [N, G, E]) },
+  { name: "초등학교 - 학원 길", from: "F0", to: "MIDDLE", via: [[1900, 130], [2180, 330]], area: "academy", wave: 1, types: fill(24, [E, N, B, G, N, C, G, N, E, B]) },
+  { name: "초등학교 - 운동장 길", from: "F0", to: "MIDDLE", via: [[1800, 420]], area: "play", wave: 1, types: fill(17, [G, N, E, G, B, N, C]) },
+  { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[2010, 720], [1720, 700]], area: "middle", wave: 1, types: fill(24, [N, G, E, B, C, G, N, E, B, G]) },
+  { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", wave: -1, types: [...fill(23, [N, B, E, G, N, C, G, B, E]), "L:exam"] },
+  { name: "대학교 길", from: "F1", to: "JOB", via: [[480, 480], [200, 620]], area: "college", wave: 1, types: ["L:college", ...fill(27, STUDENT)] },
+  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[500, 800]], area: "work", wave: -1, types: fill(25, STUDENT) },
+  { name: "성인 초반", from: "JOB", to: "F2", via: [[330, 1080], [650, 1010], [1000, 1010]], area: "young", wave: 1, types: fill(31, [P, WK, LV, G, E, B, N, WK, LV, P, C, G, E, B, N, LV]) },
+  { name: "성인 초반 - 연애 집중 길", from: "F2", to: "HOUSE", via: [[1680, 830]], area: "lovepath", wave: -1, types: fill(17, [LV, P, LV, G, LV, E, LV, B]) },
+  { name: "성인 초반 - 일 집중 길", from: "F2", to: "HOUSE", via: [[1680, 1080]], area: "workpath", wave: 1, types: fill(16, [WK, G, WK, P, WK, E, WK, B]) },
+  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(30, [P, LV, G, B, E, WK, N, C, G, P, B, E]) },
+  { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", wave: 1, types: [N, G, E, N] },
+  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(17, [G, N, E, G, LV, P]) },
+  { name: "황혼기 - 한방역전섬", from: "F3", to: "SJOIN", via: [[970, 1180]], area: "gamble", wave: -1, types: fill(14, [E]) },
+  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(16, [N, G, E, B, P, LV]) },
 ];
+
+// 모든 좌표를 SCALE 배로 키우기
+for (const key in A) {
+  A[key].p = [A[key].p[0] * SCALE, A[key].p[1] * SCALE];
+}
+for (const s of segs) {
+  s.via = s.via.map((v) => [v[0] * SCALE, v[1] * SCALE]);
+}
+
+// 폴리라인 길이
+function polyLen(pts) {
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+  return total;
+}
+
+// 폴리라인을 step 간격의 촘촘한 점들로 바꾸기
+function resample(pts, step) {
+  const total = polyLen(pts);
+  const count = Math.max(2, Math.round(total / step));
+  const out = [];
+  for (let i = 0; i <= count; i++) out.push(pointAt(pts, i / count));
+  return out;
+}
+
+// 칸 n개가 SPACING 간격으로 들어가도록, 모자란 길이만큼 사인파로 구불구불하게
+function wiggle(pts, n, sign) {
+  const target = (n + 1) * SPACING;
+  const L = polyLen(pts);
+  if (target <= L * 1.05) return pts;
+
+  const base = resample(pts, 8);
+  const halfWaves = Math.max(1, Math.round(L / 220));
+  const K = 15; // 방향을 부드럽게 계산하려고 앞뒤 15개 점 사용
+  const normals = base.map((q, i) => {
+    const a = base[Math.max(0, i - K)], b = base[Math.min(base.length - 1, i + K)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    return [-dy / len, dx / len];
+  });
+  const make = (amp) => base.map((q, i) => {
+    const s = i / (base.length - 1);
+    const off = amp * sign * Math.sin(Math.PI * halfWaves * s);
+    return [q[0] + normals[i][0] * off, q[1] + normals[i][1] * off];
+  });
+
+  // 길이가 target 이 되는 진폭 찾기 (이분 탐색)
+  let lo = 0, hi = 1500;
+  for (let it = 0; it < 40; it++) {
+    const mid = (lo + hi) / 2;
+    if (polyLen(make(mid)) < target) lo = mid; else hi = mid;
+  }
+  return make(lo);
+}
 
 // 폴리라인 위 t(0~1) 지점
 function pointAt(pts, t) {
@@ -84,7 +153,7 @@ for (const o of order) {
     tiles.push(t);
   } else {
     const s = segs[o];
-    const pts = [A[s.from].p, ...s.via, A[s.to].p];
+    const pts = wiggle([A[s.from].p, ...s.via, A[s.to].p], s.types.length, s.wave);
     segIds[o] = [];
     comments[tiles.length] = s.name;
     s.types.forEach((ty, i) => {
@@ -184,7 +253,7 @@ for (const area in areaStyle) {
   const text = areaStyle[area].label;
   const w = text.length * 22 + 20;
   let done = false;
-  for (let r = 50; r < 240 && !done; r += 10) {
+  for (let r = 50; r < 380 && !done; r += 10) {
     for (let a = 0; a < 360 && !done; a += 20) {
       const x = cx + r * Math.cos((a * Math.PI) / 180), y = cy + r * Math.sin((a * Math.PI) / 180);
       let ok = true;
@@ -199,7 +268,7 @@ for (const area in areaStyle) {
   }
   // 장식
   let count = 0;
-  for (let tries = 0; tries < 600 && count < 7; tries++) {
+  for (let tries = 0; tries < 1500 && count < 14; tries++) {
     const t = at[Math.floor(rnd() * at.length)];
     const a = rnd() * Math.PI * 2, r = 60 + rnd() * 100;
     const x = t.x + r * Math.cos(a), y = t.y + r * Math.sin(a);
@@ -212,7 +281,7 @@ for (const area in areaStyle) {
   }
 }
 let waves = "";
-for (let i = 0; i < 90; i++) {
+for (let i = 0; i < 260; i++) {
   const x = rnd() * W, y = rnd() * H;
   if (free(x, y, 30) && tiles.every((t) => Math.hypot(x - t.x, y - t.y) > 200)) {
     waves += `<path d="M${x.toFixed(0)} ${y.toFixed(0)} q8 -8 16 0 t16 0" stroke="#fff" stroke-width="3" fill="none" opacity="0.6"/>`;

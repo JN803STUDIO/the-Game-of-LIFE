@@ -50,6 +50,11 @@ const typeTitles = { good: "😆 좋은 일!", bad: "😱 나쁜 일...", normal
 // 골인 순서별 보너스 (1등, 2등, 3등, 4등)
 const goalBonus = [10000, 5000, 3000, 1000];
 
+// 미니게임 : 몇 바퀴마다 할지, 순위별 보상 (1등, 2등, 3등, 4등)
+const minigameEvery = 1;
+const miniMoney = [10, 5, 3, 0]; // 성인 : 돈 (만원)
+const miniStat = [3, 2, 1, 0];   // 미성년자 : 능력치
+
 
 // =====================================================
 // 2. 게임 상태 변수
@@ -62,9 +67,21 @@ let busy = false;      // 말이 움직이는 중이면 true (버튼 막기)
 let zoomedOut = false; // 전체 지도 보기 중인지
 
 // 설정 화면에서 쓰는 변수
-let setupCount = 2;
+let humanCount = 1;                 // 사람 수
+let botCount = 1;                   // 컴퓨터 수 (0 ~ 4-사람 수)
+let setupCount = 2;                 // 전체 인원 (사람 + 체크된 컴퓨터)
 let setupChars = [0, 1, 2, 3];
 let setupNames = ["", "", "", ""];
+let setupCpu = [false, false, false, false]; // 각 자리가 컴퓨터인지
+
+let popupCount = 0;    // 팝업이 몇 번 열렸는지 (컴퓨터 자동 선택용)
+let round = 0;         // 몇 바퀴 돌았는지 (미니게임용)
+let mini = null;       // 진행 중인 미니게임 정보
+let miniPending = false;       // 이번에 미니게임 할 차례인지
+
+let topStage = 0;              // 지금까지 누군가 도착한 가장 높은 나이대
+let checkpointPending = false; // 중간점검 할 차례인지
+let history = [];              // 중간점검 기록 (순위 그래프용)
 
 
 // =====================================================
@@ -74,6 +91,7 @@ const mapWrap = document.getElementById("mapWrap");
 const mapEl = document.getElementById("map");
 const spinBtn = document.getElementById("spinBtn");
 const wheelImg = document.getElementById("wheelImg");
+const rollText = document.getElementById("rollText");
 const cardBox = document.getElementById("cardBox");
 const playerList = document.getElementById("playerList");
 const logList = document.getElementById("log");
@@ -140,27 +158,74 @@ function setupTitle() {
 // =====================================================
 // 6. 플레이어 설정 화면
 // =====================================================
+// 사람 수 고르기
 function setPlayerCount(n) {
-  setupCount = n;
+  humanCount = n;
+  // 자리가 모자라면 컴퓨터 수 줄이기
+  if (botCount > 4 - humanCount) {
+    botCount = 4 - humanCount;
+  }
+  drawSetup();
+}
+
+// 컴퓨터 수 +1 / -1
+function changeBot(amount) {
+  botCount += amount;
+  if (botCount < 0) {
+    botCount = 0;
+  }
+  if (botCount > 4 - humanCount) {
+    botCount = 4 - humanCount;
+  }
   drawSetup();
 }
 
 function drawSetup() {
+  // 사람 수 버튼 색칠
   for (let n = 1; n <= 4; n++) {
     const btn = document.getElementById("count" + n);
-    if (n == setupCount) {
+    if (n == humanCount) {
       btn.classList.add("selected");
     } else {
       btn.classList.remove("selected");
     }
   }
 
+  // 컴퓨터 수 : [-] 2명 [+]  (최대 4 - 사람 수)
+  const botMax = 4 - humanCount;
+  let minusOff = "";
+  let plusOff = "";
+  if (botCount <= 0) {
+    minusOff = " disabled";
+  }
+  if (botCount >= botMax) {
+    plusOff = " disabled";
+  }
+  document.getElementById("botBox").innerHTML =
+    '<span class="setup-label">🤖 컴퓨터</span>' +
+    '<button class="bot-btn" onclick="changeBot(-1)"' + minusOff + '>−</button>' +
+    '<span class="bot-count">' + botCount + '명</span>' +
+    '<button class="bot-btn" onclick="changeBot(1)"' + plusOff + '>+</button>' +
+    '<span class="bot-max">(최대 ' + botMax + '명)</span>';
+
+  // 자리 정하기 : 사람 먼저, 그 다음 컴퓨터
+  setupCount = humanCount + botCount;
+  for (let i = 0; i < setupCount; i++) {
+    setupCpu[i] = i >= humanCount;
+  }
+
   let html = "";
   for (let i = 0; i < setupCount; i++) {
     const myChar = characters[setupChars[i]];
 
-    html += '<div class="slot">';
-    html += '<div class="slot-title">' + (i + 1) + 'P</div>';
+    if (setupCpu[i]) {
+      html += '<div class="slot cpu">';
+      html += '<div class="slot-title">🤖 컴퓨터</div>';
+    } else {
+      html += '<div class="slot">';
+      html += '<div class="slot-title">' + (i + 1) + 'P</div>';
+    }
+
     html += '<img class="slot-big" src="' + myChar.img + '">';
     html += '<input type="text" maxlength="6" placeholder="' + myChar.name + '" value="' + setupNames[i] + '"' +
             ' oninput="setupNames[' + i + '] = this.value">';
@@ -200,6 +265,7 @@ function startGame() {
     players.push({
       id: i,
       name: name,
+      cpu: setupCpu[i], // 컴퓨터인지
       img: ch.img,
       color: ch.color,
       money: 0,         // 💰 자산 (만원)
@@ -219,6 +285,7 @@ function startGame() {
       kids: [],         // 자녀들 (숫자 = 나이, 4살 이상이면 어른)
       house: null,      // 산 집
       lastPay: 0,       // 마지막 월급
+      stepsLeft: 0,     // 인생 이벤트 칸에서 멈췄을 때 남은 칸 수
       cards: [pick(numberCards)], // 숫자 카드 (처음에 1장)
       finished: false   // 골인 여부
     });
@@ -297,7 +364,7 @@ function drawTiles() {
 
     let label = "";
     if (t.type == "life") {
-      label = lifeEvents[t.life].label;
+      label = "🛑 " + lifeEvents[t.life].label; // 무조건 멈추는 칸
       div.classList.add("big", "life");
     } else if (t.type == "fork") {
       label = "갈림길";
@@ -496,7 +563,11 @@ function drawPlayerList() {
     html += '<div class="player' + nowClass + '">';
     html += '<img src="' + p.img + '">';
     html += '<div>';
-    html += '<div class="pname" style="color:' + p.color + '">' + p.name + '</div>';
+    let cpuMark = "";
+    if (p.cpu) {
+      cpuMark = " 🤖";
+    }
+    html += '<div class="pname" style="color:' + p.color + '">' + p.name + cpuMark + '</div>';
     html += '<div class="' + moneyClass + '">💰 ' + p.money + '만원</div>';
     html += '<div>💼 ' + jobTitle(p) + '</div>';
     html += '<div class="stats">' + stats + '</div>';
@@ -607,9 +678,17 @@ function applyResult(p, r) {
 
 // 차례 시작
 function startTurn() {
-  busy = false;
+  const p = players[turn];
+  busy = p.cpu; // 컴퓨터 차례에는 버튼을 막아요
+  rollText.textContent = "";
   updateScreen();
-  showBanner(players[turn].name + "의 차례!", players[turn].color);
+
+  if (p.cpu) {
+    showBanner("🤖 " + p.name + "의 차례!", p.color);
+    setTimeout(cpuTurn, 1300);
+  } else {
+    showBanner(p.name + "의 차례!", p.color);
+  }
 }
 
 function spin() {
@@ -624,6 +703,11 @@ function useCard(i) {
   if (busy) {
     return;
   }
+  playCard(i);
+}
+
+// i번째 숫자 카드 쓰기
+function playCard(i) {
   const p = players[turn];
   const card = p.cards[i];
   p.cards.splice(i, 1); // 카드 사용 → 손에서 없애기
@@ -635,15 +719,21 @@ function useCard(i) {
 function rollWheel(num) {
   busy = true;
   updateScreen();
+  rollText.textContent = "두근두근...";
 
+  spinWheel(num, function () {
+    afterRoll(num);
+  });
+}
+
+// 룰렛판만 돌리기 (다 돌면 done 함수 실행)
+// 이동할 때도, 축의금 룰렛 때도 같이 써요
+function spinWheel(num, done) {
   spinCount++;
   // 5바퀴(1800도) 돌고, 한 칸이 36도
   const angle = spinCount * 1800 - (num - 1) * 36;
   wheelImg.style.transform = "rotate(" + angle + "deg)";
-
-  setTimeout(function () {
-    afterRoll(num);
-  }, 2100);
+  setTimeout(done, 2100);
 }
 
 function afterRoll(num) {
@@ -651,6 +741,7 @@ function afterRoll(num) {
 
   // 골인한 사람은 보너스 룰렛 : 숫자 × 500만원
   if (p.finished) {
+    rollText.textContent = "🎰 " + num + " × 500만원!";
     const summary = applyResult(p, { money: num * 500 });
     addLog(p.name + " : 🎰 보너스 " + moneyText(num * 500));
     showPopup(images.tiles.goal, "🎰 보너스 룰렛 " + num + "!", resultHtml(summary));
@@ -658,6 +749,7 @@ function afterRoll(num) {
   }
 
   addLog(p.name + " : 🎯 " + num + " 칸 이동");
+  rollText.textContent = "🎯 " + num + "칸 이동!";
   movePlayer(p, num);
 }
 
@@ -686,12 +778,21 @@ function stepTo(p, id, left) {
   placePiece(p);
   follow(p);
 
+  const remain = left - 1; // 이 칸으로 온 뒤 남은 칸 수
+  rollText.textContent = "남은 칸 : " + remain;
+
   // 새 지역에 들어가면 배너
   if (t.area != p.area) {
     p.area = t.area;
     const area = areas[t.area];
     showBanner(area.name + "<small>" + area.story + "</small>", p.color);
     addLog(p.name + " : " + area.name + " 도착");
+
+    // 누군가 새로운 나이대에 처음 들어가면 → 한 바퀴가 끝난 뒤 중간점검
+    if (area.stage > topStage) {
+      topStage = area.stage;
+      checkpointPending = true;
+    }
   }
 
   // 월급날 칸은 지나가기만 해도 월급!
@@ -699,16 +800,29 @@ function stepTo(p, id, left) {
     paySalary(p);
   }
 
-  // 인생 이벤트 칸, 골인 칸은 무조건 멈춤
-  if (t.type == "life" || t.type == "goal") {
+  // 골인 칸은 무조건 끝
+  if (t.type == "goal") {
     setTimeout(function () {
       arrive(p);
     }, 500);
     return;
   }
 
+  // 인생 이벤트 칸(🛑) : 멈춰서 이벤트 → 끝나면 남은 칸만큼 계속 이동
+  if (t.type == "life") {
+    p.stepsLeft = remain; // 이벤트가 끝나면 nextTurn 에서 이어서 이동
+    if (remain > 0) {
+      rollText.textContent = "🛑 STOP! (이벤트 후 " + remain + "칸 더)";
+      showBanner("🛑 인생 이벤트!<small>이벤트가 끝나면 남은 " + remain + "칸 더 이동해요</small>", "#e03131");
+    }
+    setTimeout(function () {
+      arrive(p);
+    }, 900);
+    return;
+  }
+
   setTimeout(function () {
-    movePlayer(p, left - 1);
+    movePlayer(p, remain);
   }, 330);
 }
 
@@ -716,12 +830,14 @@ function stepTo(p, id, left) {
 function askFork(p, here, left) {
   const fork = forks[here.fork];
   const buttons = [];
+  const cpuIndex = cpuForkChoice(p, here.fork);
 
   for (let i = 0; i < fork.routes.length; i++) {
     const route = fork.routes[i];
     buttons.push({
       text: route.label,
       desc: route.desc,
+      cpuPick: i == cpuIndex,
       action: function () {
         applyResult(p, route);
         addLog(p.name + " : " + route.label + " 선택");
@@ -814,7 +930,10 @@ function arrive(p) {
 // 선택 이벤트 (?)
 function eventTile(p, ev, img) {
   const buttons = [];
-  for (const choice of ev.choices) {
+  const cpuIndex = cpuEventChoice(p, ev.choices);
+
+  for (let i = 0; i < ev.choices.length; i++) {
+    const choice = ev.choices[i];
     let desc = "";
     if (choice.chance < 1) {
       desc = "성공 확률 " + Math.round(successChance(p, choice.chance) * 100) + "%";
@@ -822,6 +941,7 @@ function eventTile(p, ev, img) {
     buttons.push({
       text: choice.label,
       desc: desc,
+      cpuPick: i == cpuIndex,
       action: function () {
         resolveChoice(p, choice, img);
       }
@@ -876,9 +996,14 @@ function loveTile(p, img) {
       p.spouse.love = 0;
       text += "<br><br>👶 <b>아기가 태어났어요!</b><br>(월급날 4번이 지나면 어른이 되어 돈을 벌어요)";
       addLog(p.name + " : 👶 아기 탄생!");
-    } else {
-      text += " (현재 " + p.spouse.love + "%)";
+      drawPlayerList();
+      // 아기가 태어나면 축의금 룰렛!
+      showPopup(img, "💑 " + p.spouse.name + "와(과) 데이트", text,
+        [{ text: "🎁 축의금 룰렛!", action: function () { giftRoulette(p, "👶 출산 축하"); } }]);
+      return;
     }
+
+    text += " (현재 " + p.spouse.love + "%)";
     drawPlayerList();
     showPopup(img, "💑 " + p.spouse.name + "와(과) 데이트", text);
     return;
@@ -897,8 +1022,9 @@ function loveTile(p, img) {
     showPopup(img, "💕 " + p.date.name + "와(과) 데이트",
       pick(dates) + "<br>애정도 +" + gain + "% (현재 " + p.date.love + "%)",
       [
-        { text: "💌 고백하기", desc: "성공 확률 " + Math.round(chance * 100) + "%", action: function () { confess(p, img); } },
-        { text: "다음에", action: nextTurn }
+        // 컴퓨터는 성공 확률 60% 이상이면 고백
+        { text: "💌 고백하기", desc: "성공 확률 " + Math.round(chance * 100) + "%", cpuPick: chance >= 0.6, action: function () { confess(p, img); } },
+        { text: "다음에", cpuPick: chance < 0.6, action: nextTurn }
       ]);
     return;
   }
@@ -915,6 +1041,7 @@ function loveTile(p, img) {
     [
       {
         text: "💕 연애 시작",
+        cpuPick: true,
         action: function () {
           p.date = { name: partner.name, salary: partner.salary, love: 10 + p.sense };
           addLog(p.name + " : 💕 " + partner.name + "와(과) 연애 시작");
@@ -933,9 +1060,12 @@ function confess(p, img) {
     p.spouse = p.date;
     p.spouse.love = 30;
     p.date = null;
-    const summary = applyResult(p, { all: 100 });
     addLog(p.name + " : 💍 " + p.spouse.name + "와(과) 결혼!");
-    showPopup(img, "💍 고백 성공! 결혼!", "모두에게 축의금을 받았어요!" + resultHtml(summary));
+    drawPlayerList();
+    // 결혼하면 축의금 룰렛!
+    showPopup(img, "💍 고백 성공! 결혼!",
+      p.spouse.name + "와(과) 결혼해요!<br>축의금 룰렛을 돌려서 모두에게 축의금을 받아요!",
+      [{ text: "🎁 축의금 룰렛!", action: function () { giftRoulette(p, "💍 결혼 축하"); } }]);
   } else {
     p.date.love -= 30;
     let text = "아직 마음의 준비가 안 됐대요... (애정도 -30%)";
@@ -947,6 +1077,28 @@ function confess(p, img) {
     drawPlayerList();
     showPopup(img, "😢 고백 실패", text);
   }
+}
+
+
+// 🎁 축의금 룰렛 : 나온 숫자 × 100만원을 다른 사람 "한 명마다" 받아요
+function giftRoulette(p, reason) {
+  const num = randomInt(1, 10);
+  const amount = num * 100;
+  rollText.textContent = "🎁 축의금 룰렛...";
+
+  spinWheel(num, function () {
+    rollText.textContent = "🎁 " + num + " × 100만원!";
+
+    if (players.length == 1) {
+      showPopup(images.tiles.love, reason, "축의금을 줄 사람이 없어요... 😢");
+      return;
+    }
+
+    const summary = applyResult(p, { all: amount });
+    addLog(p.name + " : 🎁 축의금 " + amount + "만원씩 받음");
+    showPopup(images.tiles.love, "🎁 " + reason + "!",
+      "룰렛 <b>" + num + "</b>! 모두에게 <b>" + amount + "만원</b>씩 받았어요!" + resultHtml(summary));
+  });
 }
 
 
@@ -1054,10 +1206,12 @@ function lifeTile(p, key, img) {
   // 🏠 집 사기
   else if (key == "house") {
     const buttons = [];
+    const cpuHouse = cpuHouseChoice(p);
     for (const house of houses) {
       buttons.push({
         text: house.name,
         desc: house.price + "만원 → 나중에 " + house.sell + "만원",
+        cpuPick: house == cpuHouse,
         action: function () {
           p.house = house;
           applyResult(p, { money: -house.price });
@@ -1066,7 +1220,7 @@ function lifeTile(p, key, img) {
         }
       });
     }
-    buttons.push({ text: "안 산다", action: nextTurn });
+    buttons.push({ text: "안 산다", cpuPick: cpuHouse == null, action: nextTurn });
     showPopup(img, ev.title, ev.text, buttons);
   }
 
@@ -1102,6 +1256,7 @@ function chooseJob(p, img) {
       buttons.push({
         text: job.name,
         desc: first.title + " · 월급 " + first.salary,
+        salary: first.salary,
         action: function () {
           p.job = i;
           p.grade = 0;
@@ -1112,6 +1267,15 @@ function chooseJob(p, img) {
       });
     }
   }
+
+  // 컴퓨터는 월급이 가장 많은 직업을 골라요
+  let best = buttons[0];
+  for (const b of buttons) {
+    if (b.salary > best.salary) {
+      best = b;
+    }
+  }
+  best.cpuPick = true;
 
   let text = lifeEvents.job.text;
   if (lockedText != "") {
@@ -1164,6 +1328,105 @@ function showPopup(img, title, text, buttons) {
   }
 
   popup.classList.remove("hidden");
+
+  // 컴퓨터 차례면 잠깐 보여 준 뒤 알아서 버튼 누르기
+  popupCount++;
+  const myCount = popupCount;
+  if (players.length > 0 && players[turn].cpu) {
+    const choice = cpuChoose(buttons);
+    setTimeout(function () {
+      // 그사이 다른 팝업이 열렸거나 닫혔으면 무시
+      if (myCount == popupCount && !popup.classList.contains("hidden")) {
+        popup.classList.add("hidden");
+        choice.action();
+      }
+    }, 1800);
+  }
+}
+
+
+// =====================================================
+// 17-2. 컴퓨터(CPU) 두뇌
+// =====================================================
+
+// 컴퓨터 차례 : 가끔 숫자 카드를 쓰고, 아니면 룰렛
+function cpuTurn() {
+  const p = players[turn];
+  if (!p.finished && p.cards.length > 0 && Math.random() < 0.3) {
+    playCard(0);
+  } else {
+    rollWheel(randomInt(1, 10));
+  }
+}
+
+// 버튼 중에서 cpuPick 표시가 있는 걸 고르기 (없으면 랜덤)
+function cpuChoose(buttons) {
+  for (const b of buttons) {
+    if (b.cpuPick) {
+      return b;
+    }
+  }
+  return pick(buttons);
+}
+
+// 갈림길 : 몇 번째 길로 갈지
+function cpuForkChoice(p, key) {
+  if (key == "f0") {
+    // 체력 재능이면 운동장, 아니면 학원
+    if (p.talent == "str") {
+      return 1;
+    }
+    return 0;
+  }
+  if (key == "f1") {
+    // 공부를 잘하면 대학, 아니면 바로 취업
+    if (p.int >= 6 || p.talent == "int") {
+      return 0;
+    }
+    return 1;
+  }
+  if (key == "f2") {
+    // 결혼 안 했으면 연애 집중, 했으면 일 집중
+    if (p.spouse == null) {
+      return 0;
+    }
+    return 1;
+  }
+  if (key == "f3") {
+    // 돈이 부족하면 한방역전섬으로 역전 노리기!
+    if (p.money < 5000) {
+      return 1;
+    }
+    return 0;
+  }
+  return 0;
+}
+
+// 선택 이벤트 : 성공 확률 50% 이상이면 도전, 아니면 안전한 선택
+function cpuEventChoice(p, choices) {
+  for (let i = 0; i < choices.length; i++) {
+    const c = choices[i];
+    if (c.chance < 1 && successChance(p, c.chance) >= 0.5) {
+      return i;
+    }
+  }
+  for (let i = 0; i < choices.length; i++) {
+    if (choices[i].chance >= 1) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+// 집 : 살 수 있는 것 중 가장 비싼 집 (돈이 없으면 null = 안 삼)
+function cpuHouseChoice(p) {
+  let best = null;
+  for (const house of houses) {
+    if (house.price <= p.money) {
+      best = house;
+    }
+  }
+  return best;
 }
 
 
@@ -1171,6 +1434,19 @@ function showPopup(img, title, text, buttons) {
 // 18. 다음 차례
 // =====================================================
 function nextTurn() {
+  // 인생 이벤트 칸에서 멈췄다면 → 남은 칸만큼 이어서 이동 (차례는 그대로)
+  const now = players[turn];
+  if (now.stepsLeft > 0) {
+    const left = now.stepsLeft;
+    now.stepsLeft = 0;
+    rollText.textContent = "▶ 남은 " + left + "칸 이동!";
+    addLog(now.name + " : ▶ 남은 " + left + "칸 이어서 이동");
+    setTimeout(function () {
+      movePlayer(now, left);
+    }, 400);
+    return;
+  }
+
   // 모두 골인했으면 게임 끝
   if (finishCount == players.length) {
     showResult();
@@ -1178,7 +1454,404 @@ function nextTurn() {
   }
   // 골인한 사람도 차례가 와요 (보너스 룰렛)
   turn = (turn + 1) % players.length;
+
+  // 모두 한 번씩 했으면 (= 한 바퀴) 미니게임!
+  if (turn == 0) {
+    round++;
+    if (round % minigameEvery == 0) {
+      miniPending = true;
+    }
+  }
+  continueGame();
+}
+
+// 차례 사이에 할 일 : 중간점검 → 미니게임 → 다음 사람 차례
+// (중간점검, 미니게임 창을 닫으면 다시 이 함수가 불려요)
+function continueGame() {
+  // 중간점검은 한 바퀴가 다 끝났을 때(turn == 0)만
+  if (checkpointPending && turn == 0) {
+    checkpointPending = false;
+    showCheckpoint();
+    return;
+  }
+  if (miniPending) {
+    miniPending = false;
+    startMinigame();
+    return;
+  }
   startTurn();
+}
+
+
+// =====================================================
+// 18-2. 미니게임
+//   한 바퀴마다 열려요. 사람은 직접 하고, 컴퓨터는 점수가 자동!
+//   점수 순위대로 상금 (miniPrize)
+// =====================================================
+// stat : 미성년자가 이기면 오르는 능력치
+const minigames = [
+  { name: "⚡ 연타 대결", desc: "5초 동안 버튼을 최대한 많이 누르세요!", play: playMash, stat: "str", cpuMin: 20, cpuMax: 40 },
+  { name: "🎯 타이밍 대결", desc: "움직이는 막대를 초록색 가운데에서 멈추세요!", play: playTiming, stat: "sense", cpuMin: 50, cpuMax: 95 },
+  { name: "🍀 행운의 상자", desc: "상자 3개 중 하나를 고르세요! (0점 / 50점 / 100점)", play: playBox, stat: "luck", cpuMin: 0, cpuMax: 100 }
+];
+
+// 성인인지 (대학 / 바로 취업 길부터 성인)
+function isAdult(p) {
+  return areas[p.area].adult == true;
+}
+
+// 순위(0, 1, 2, 3)에 맞는 보상 : 미성년자는 능력치, 성인은 돈
+function miniReward(p, rank) {
+  const r = {};
+  if (isAdult(p)) {
+    r.money = miniMoney[rank];
+  } else {
+    r[mini.game.stat] = miniStat[rank];
+  }
+  return r;
+}
+
+// 1등 상품 글자 (미성년자는 능력치, 성인이 되면 자동으로 돈)
+function rewardText(p) {
+  if (isAdult(p)) {
+    return "💰 " + miniMoney[0] + "만원";
+  }
+  return statNames[mini.game.stat] + " +" + miniStat[0];
+}
+
+const miniBox = document.getElementById("mini");
+const miniTitle = document.getElementById("miniTitle");
+const miniBody = document.getElementById("miniBody");
+
+// 미니게임 창에 내용 보여주기
+function showMini(title, html) {
+  miniTitle.innerHTML = title;
+  miniBody.innerHTML = html;
+  miniBox.classList.remove("hidden");
+}
+
+function startMinigame() {
+  busy = true;
+  updateScreen();
+
+  const game = pick(minigames);
+  mini = { game: game, index: 0, scores: [] };
+
+  showMini("🎮 미니게임 : " + game.name,
+    game.desc + "<br><br>🥇🥈🥉 순위대로 상품을 받아요!" +
+    '<br><br><button class="big-btn" onclick="miniNextPlayer()">시작!</button>');
+}
+
+// 다음 사람 차례
+function miniNextPlayer() {
+  if (mini.index >= players.length) {
+    miniFinish();
+    return;
+  }
+  const p = players[mini.index];
+
+  // 컴퓨터는 점수 자동
+  if (p.cpu) {
+    const score = randomInt(mini.game.cpuMin, mini.game.cpuMax);
+    miniDone(p, score);
+    return;
+  }
+
+  showMini(mini.game.name,
+    '<img src="' + p.img + '" width="80"><br><b style="color:' + p.color + '">' + p.name + '</b>의 차례!' +
+    '<br>🎁 1등 상품 : ' + rewardText(p) +
+    '<br><br><button class="big-btn" onclick="mini.game.play(players[mini.index])">준비 완료!</button>');
+}
+
+// 한 사람 끝 → 점수 보여주고 다음 사람
+function miniDone(p, score) {
+  mini.scores[p.id] = score;
+  let who = p.name;
+  if (p.cpu) {
+    who = "🤖 " + p.name;
+  }
+  showMini(mini.game.name,
+    who + "의 점수<br><div class='big-num'>" + score + "점</div>" +
+    '<button class="big-btn" onclick="mini.index++; miniNextPlayer()">다음</button>');
+}
+
+// 모두 끝 → 순위 + 상금
+function miniFinish() {
+  const ranked = players.slice();
+  ranked.sort(function (a, b) {
+    return mini.scores[b.id] - mini.scores[a.id];
+  });
+
+  const medals = ["🥇", "🥈", "🥉", "4등"];
+  let html = "";
+  for (let i = 0; i < ranked.length; i++) {
+    const p = ranked[i];
+    let summary = applyResult(p, miniReward(p, i));
+    if (summary == "") {
+      summary = "보상 없음";
+    }
+    html += '<div class="mini-rank">' +
+            '<span>' + medals[i] + ' <img src="' + p.img + '"> ' + p.name + '</span>' +
+            '<span>' + mini.scores[p.id] + '점 · ' + summary + '</span>' +
+            '</div>';
+  }
+  addLog("🎮 미니게임 1등 : " + ranked[0].name);
+
+  html += '<br><button class="big-btn" onclick="closeMini()">계속하기</button>';
+  showMini("🏆 미니게임 결과", html);
+}
+
+function closeMini() {
+  miniBox.classList.add("hidden");
+  miniBox.classList.remove("wide");
+  mini = null;
+  continueGame();
+}
+
+
+// ----- 미니게임 1 : 연타 대결 -----
+function playMash(p) {
+  let count = 0;
+  let timeLeft = 5;
+
+  showMini("⚡ 연타 대결",
+    '남은 시간 <b id="mashTime">5</b>초<br>' +
+    '<button class="big-btn mash-btn" id="mashBtn">0</button>');
+
+  const btn = document.getElementById("mashBtn");
+  btn.onclick = function () {
+    count++;
+    btn.textContent = count;
+  };
+
+  const timer = setInterval(function () {
+    timeLeft--;
+    document.getElementById("mashTime").textContent = timeLeft;
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      miniDone(p, count);
+    }
+  }, 1000);
+}
+
+
+// ----- 미니게임 2 : 타이밍 대결 -----
+function playTiming(p) {
+  let pos = 0;        // 막대 위치 (0 ~ 100)
+  let speed = 2;      // 한 번에 움직이는 양
+
+  showMini("🎯 타이밍 대결",
+    '<div class="timing-track"><div class="timing-target"></div><div class="timing-bar" id="timingBar"></div></div>' +
+    '<button class="big-btn" id="timingBtn">멈춰!</button>');
+
+  const bar = document.getElementById("timingBar");
+  const timer = setInterval(function () {
+    pos += speed;
+    if (pos >= 100 || pos <= 0) {
+      speed = -speed; // 끝에 닿으면 반대로
+    }
+    bar.style.left = pos + "%";
+  }, 16);
+
+  document.getElementById("timingBtn").onclick = function () {
+    clearInterval(timer);
+    // 가운데(50)에 가까울수록 높은 점수
+    let score = 100 - Math.abs(pos - 50) * 2;
+    if (score < 0) {
+      score = 0;
+    }
+    miniDone(p, Math.round(score));
+  };
+}
+
+
+// ----- 미니게임 3 : 행운의 상자 -----
+function playBox(p) {
+  // 점수 3개를 섞어서 상자에 넣기
+  const prizes = [0, 50, 100];
+  prizes.sort(function () {
+    return Math.random() - 0.5;
+  });
+
+  let html = "";
+  for (let i = 0; i < 3; i++) {
+    html += '<button class="box-btn" onclick="openBox(' + prizes[i] + ')">🎁</button>';
+  }
+  showMini("🍀 행운의 상자", "하나를 골라 보세요!<br>" + html);
+}
+
+function openBox(score) {
+  miniDone(players[mini.index], score);
+}
+
+
+// =====================================================
+// 18-3. 📋 중간점검
+//   누군가 새로운 나이대에 처음 들어가면 열려요.
+//   순위(지난번과 비교) + 순위 그래프 + 캐릭터별 현재 상태
+// =====================================================
+
+// 총자산 = 현금 + 집 판 돈
+function totalOf(p) {
+  let total = p.money;
+  if (p.house != null) {
+    total += p.house.sell;
+  }
+  return total;
+}
+
+function showCheckpoint() {
+  busy = true;
+  updateScreen();
+
+  // 1) 지금 순위 계산 : ranks[플레이어 번호] = 등수
+  const ranked = players.slice();
+  ranked.sort(function (a, b) {
+    return totalOf(b) - totalOf(a);
+  });
+  const ranks = [];
+  for (let i = 0; i < ranked.length; i++) {
+    ranks[ranked[i].id] = i + 1;
+  }
+
+  // 2) 지난번 중간점검 순위 (처음이면 없음)
+  let before = null;
+  if (history.length > 0) {
+    before = history[history.length - 1].ranks;
+  }
+  history.push({ stage: topStage, ranks: ranks });
+
+  // 3) 순위표 (▲ 올라감 / ▼ 내려감)
+  let html = '<div class="cp-section"><h3>🏆 순위</h3>';
+  for (const p of ranked) {
+    const now = ranks[p.id];
+    let change = '<span class="cp-same">-</span>';
+    if (before != null) {
+      const diff = before[p.id] - now; // 양수면 순위가 오른 것
+      if (diff > 0) {
+        change = '<span class="cp-up">▲' + diff + '</span>';
+      } else if (diff < 0) {
+        change = '<span class="cp-down">▼' + (-diff) + '</span>';
+      }
+    }
+    html += '<div class="mini-rank">' +
+            '<span>' + now + '등 <img src="' + p.img + '"> ' + p.name + ' ' + change + '</span>' +
+            '<span>💰 ' + totalOf(p) + '만원</span>' +
+            '</div>';
+  }
+  html += '</div>';
+
+  // 4) 순위 그래프
+  html += '<div class="cp-section"><h3>📈 순위 변화</h3>' + rankGraph() + '</div>';
+
+  // 5) 캐릭터별 현재 상태
+  html += '<div class="cp-section"><h3>🧑 현재 상태</h3><div class="cp-status">';
+  for (const p of players) {
+    html += statusCard(p);
+  }
+  html += '</div></div>';
+
+  html += '<button class="big-btn" onclick="closeMini()">계속하기</button>';
+
+  miniBox.classList.add("wide");
+  showMini("📋 중간점검 : " + stages[topStage], html);
+  addLog("📋 중간점검 : " + stages[topStage]);
+}
+
+// ----- 순위 그래프 (SVG 선 그래프) -----
+// 가로 = 중간점검 순서, 세로 = 등수 (1등이 맨 위)
+const GRAPH_W = 560;
+const GRAPH_H = 220;
+
+// i번째 점검의 x 위치
+function graphX(i) {
+  const n = history.length;
+  if (n == 1) {
+    return GRAPH_W / 2;
+  }
+  return 60 + i * (GRAPH_W - 110) / (n - 1);
+}
+
+// r등의 y 위치
+function graphY(r) {
+  const count = players.length;
+  if (count == 1) {
+    return GRAPH_H / 2;
+  }
+  return 25 + (r - 1) * (GRAPH_H - 70) / (count - 1);
+}
+
+function rankGraph() {
+  let svg = '<svg class="rank-graph" viewBox="0 0 ' + GRAPH_W + ' ' + GRAPH_H + '">';
+
+  // 등수 가로줄 + 글자
+  for (let r = 1; r <= players.length; r++) {
+    svg += '<line x1="45" y1="' + graphY(r) + '" x2="' + (GRAPH_W - 20) + '" y2="' + graphY(r) + '" class="grid"/>';
+    svg += '<text x="8" y="' + (graphY(r) + 5) + '" class="axis">' + r + '등</text>';
+  }
+
+  // 아래쪽 : 나이대 이름 (이모지만)
+  for (let i = 0; i < history.length; i++) {
+    const emoji = stages[history[i].stage].split(" ")[0];
+    svg += '<text x="' + graphX(i) + '" y="' + (GRAPH_H - 12) + '" class="axis" text-anchor="middle">' + emoji + '</text>';
+  }
+
+  // 플레이어마다 선 + 점 + 마지막에 캐릭터 그림
+  for (const p of players) {
+    let points = "";
+    for (let i = 0; i < history.length; i++) {
+      points += graphX(i) + "," + graphY(history[i].ranks[p.id]) + " ";
+    }
+    svg += '<polyline points="' + points + '" fill="none" stroke="' + p.color + '" stroke-width="4" stroke-linejoin="round"/>';
+
+    for (let i = 0; i < history.length; i++) {
+      svg += '<circle cx="' + graphX(i) + '" cy="' + graphY(history[i].ranks[p.id]) + '" r="6" fill="' + p.color + '" stroke="white" stroke-width="2"/>';
+    }
+
+    const last = history.length - 1;
+    svg += '<image href="' + p.img + '" x="' + (graphX(last) + 8) + '" y="' + (graphY(history[last].ranks[p.id]) - 16) + '" width="28" height="30"/>';
+  }
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ----- 캐릭터 상태 카드 -----
+function statusCard(p) {
+  // 능력치 (재능은 ⭐)
+  let stats = "";
+  for (const key in statNames) {
+    let star = "";
+    if (p.talent == key) {
+      star = "⭐";
+    }
+    stats += statNames[key] + " " + p[key] + star + " ";
+  }
+
+  // 연애 · 가족
+  let family = "🙋 싱글";
+  if (p.spouse != null) {
+    family = "💍 " + p.spouse.name;
+  } else if (p.date != null) {
+    family = "💕 " + p.date.name + " (연애 중)";
+  }
+  if (p.kids.length > 0) {
+    family += " · 👶×" + p.kids.length;
+  }
+
+  let house = "";
+  if (p.house != null) {
+    house = "<br>🏠 " + p.house.name;
+  }
+
+  return '<div class="cp-card" style="border-color:' + p.color + '">' +
+         '<div class="cp-name"><img src="' + p.img + '"> ' + p.name + '</div>' +
+         '📍 ' + areas[p.area].name + '<br>' +
+         '💰 ' + p.money + '만원<br>' +
+         '💼 ' + jobTitle(p) + '<br>' +
+         '<span class="cp-stats">' + stats + '</span><br>' +
+         family + house +
+         '</div>';
 }
 
 
@@ -1250,7 +1923,8 @@ function showResult() {
 // =====================================================
 document.addEventListener("keydown", function (e) {
   const inGame = !document.getElementById("gameScreen").classList.contains("hidden");
-  if (e.code == "Space" && inGame && popup.classList.contains("hidden")) {
+  const noWindow = popup.classList.contains("hidden") && miniBox.classList.contains("hidden");
+  if (e.code == "Space" && inGame && noWindow) {
     e.preventDefault();
     spin();
   }

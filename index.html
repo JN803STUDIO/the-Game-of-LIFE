@@ -41,11 +41,13 @@
   <div id="setupScreen" class="screen hidden">
     <h2 class="screen-title">플레이어 설정</h2>
     <div class="count-btns">
+      <span class="setup-label">👤 사람</span>
       <button id="count1" onclick="setPlayerCount(1)">1명</button>
       <button id="count2" onclick="setPlayerCount(2)">2명</button>
       <button id="count3" onclick="setPlayerCount(3)">3명</button>
       <button id="count4" onclick="setPlayerCount(4)">4명</button>
     </div>
+    <div id="botBox"></div>
     <div id="slots"></div>
     <button class="big-btn" onclick="startGame()">인생 시작!</button>
   </div>
@@ -68,6 +70,7 @@
           <div id="pointer"></div>
           <img id="wheelImg" alt="룰렛">
         </div>
+        <div id="rollText"></div>
         <button id="spinBtn" class="big-btn" onclick="spin()">룰렛 돌리기</button>
         <div id="cardBox"></div>
         <button id="zoomBtn" class="small-btn" onclick="toggleZoom()">🗺️ 전체 지도</button>
@@ -112,6 +115,14 @@
       <h2 id="popupTitle"></h2>
       <div id="popupText"></div>
       <div id="popupButtons"></div>
+    </div>
+  </div>
+
+  <!-- ========== 미니게임 창 ========== -->
+  <div id="mini" class="hidden">
+    <div class="popup-card mini-card">
+      <h2 id="miniTitle"></h2>
+      <div id="miniBody"></div>
     </div>
   </div>
 
