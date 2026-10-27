@@ -17,6 +17,7 @@ const images = {
     card: "assets/tiles/card.svg",
     lucky: "assets/tiles/lucky.svg",
     treasure: "assets/tiles/treasure.svg",
+    shop: "assets/tiles/shop.svg",
     fork: "assets/tiles/fork.svg",
     start: "assets/tiles/start.svg",
     goal: "assets/tiles/goal.svg"
@@ -130,6 +131,7 @@ let miniPending = false;       // 이번에 미니게임 할 차례인지
 let topStage = 0;              // 지금까지 누군가 도착한 가장 높은 나이대
 let checkpointPending = false; // 중간 집계 할 차례인지
 let history = [];              // 중간 집계 기록 (순위 그래프용)
+let marketMult = { estate: 1, stock: 1, collect: 1 }; // 📈 시세 (게임이 끝날 때 룰렛으로 정해요)
 let metPairs = {};             // 인연 이벤트를 이미 한 두 사람 (어린 시절 / 어른 한 번씩)
 
 
@@ -141,7 +143,8 @@ const mapEl = document.getElementById("map");
 const spinBtn = document.getElementById("spinBtn");
 const wheelImg = document.getElementById("wheelImg");
 const rollText = document.getElementById("rollText");
-const cardBox = document.getElementById("cardBox");
+const cardMenuBtn = document.getElementById("cardMenuBtn");
+const menuPanel = document.getElementById("menuPanel");
 const playerList = document.getElementById("playerList");
 const logList = document.getElementById("log");
 const popup = document.getElementById("popup");
@@ -303,7 +306,7 @@ function drawSetup() {
     if (k == setupMode) {
       cls += " selected";
     }
-    modeHtml += '<button class="' + cls + '" onclick="setMode(' + k + ')">' + modes[k].name + '<small>' + modes[k].turns + '턴</small></button>';
+    modeHtml += '<button class="' + cls + '" onclick="setMode(' + k + ')">' + modes[k].name + '<small>약 ' + modes[k].turns + '턴</small></button>';
   }
   modeHtml += '<p class="mode-desc">' + modes[setupMode].desc + '</p>';
   document.getElementById("modeBox").innerHTML = modeHtml;
@@ -420,6 +423,7 @@ function startGame() {
       kids: [],             // 자녀들 { name, gender, age, job }
       house: null,          // 산 집
       treasures: [],        // 모은 보물
+      assets: [],           // 🏪 상점에서 산 부동산 · 투자, 🖼️ 소장품 (마지막에 시세로 정산)
       debt: 0,              // 🏦 대출 건수
       lastPay: 0,           // 마지막 월급
       stepsLeft: 0,         // 인생 이벤트 칸에서 멈췄을 때 남은 칸 수
@@ -469,7 +473,7 @@ function startGame() {
     return;
   }
   showPopup(images.tiles.start, "👶 인생의 시작",
-    "지금부터 " + names + "(은)는 아기예요!<br>" + gameMode.turns + "턴 동안, 누가 가장 부자가 될까요?",
+    "지금부터 " + names + "(은)는 아기예요!<br>골인까지 약 " + gameMode.turns + "턴! 누가 가장 부자가 될까요?",
     [{ text: "시작!", action: startTurn }]);
 }
 
@@ -578,7 +582,7 @@ function drawLegend() {
   const items = [
     ["good", "좋은 일"], ["bad", "나쁜 일"], ["normal", "보통"], ["event", "선택 이벤트"],
     ["pay", "월급날"], ["love", "연애"], ["work", "직업"], ["card", "카드"],
-    ["lucky", "럭키 칸"], ["treasure", "보물"]
+    ["lucky", "럭키 칸"], ["treasure", "보물"], ["shop", "상점"]
   ];
   let html = "";
   for (const item of items) {
@@ -665,7 +669,7 @@ function updateScreen() {
   if (p.finished) {
     spinBtn.textContent = "🎰 보너스 룰렛";
   } else {
-    spinBtn.textContent = "룰렛 돌리기";
+    spinBtn.textContent = "🎡 룰렛";
   }
   spinBtn.disabled = busy;
 
@@ -709,16 +713,13 @@ function drawHud() {
     '</div>';
 
   // 오른쪽 위 : 턴 + 월급날까지
-  let turnNow = round + 1;
-  if (turnNow > gameMode.turns) {
-    turnNow = gameMode.turns;
-  }
+  const turnNow = round + 1;
   let payText = "";
   const toPay = stepsToPay(p);
   if (toPay > 0 && !p.finished) {
     payText = '<div>💵 월급날까지 <b>' + toPay + '</b>칸</div>';
   }
-  document.getElementById("turnHud").innerHTML = '<div>🕐 턴 <b>' + turnNow + '</b> / ' + gameMode.turns + '</div>' + payText;
+  document.getElementById("turnHud").innerHTML = '<div>🕐 턴 <b>' + turnNow + '</b> <small>(약 ' + gameMode.turns + '턴)</small></div>' + payText;
 }
 
 // 다음 월급날 칸까지 몇 칸인지 (못 찾으면 0)
@@ -737,23 +738,11 @@ function stepsToPay(p) {
   return 0;
 }
 
-// 지금 차례인 사람의 카드 버튼
+// 메뉴의 [카드] 버튼 (몇 장 있는지, 지금 쓸 수 있는지)
 function drawCards() {
   const p = players[turn];
-  let html = "";
-  if (!p.finished) {
-    for (let i = 0; i < p.cards.length; i++) {
-      const c = p.cards[i];
-      let disabled = "";
-      // 수호 카드는 갖고만 있는 카드, 저격 카드는 앞에 럭키 칸이 있을 때만
-      if (busy || c.key == "guard" || (c.key == "snipe" && luckyAhead(p).length == 0)) {
-        disabled = " disabled";
-      }
-      html += '<button class="num-card" onclick="useCard(' + i + ')"' + disabled + ' title="' + c.desc + '">' +
-              c.name + '<br><small>' + c.desc + '</small></button>';
-    }
-  }
-  cardBox.innerHTML = html;
+  cardMenuBtn.textContent = "🎴 카드 " + p.cards.length;
+  cardMenuBtn.disabled = busy || p.finished || p.cards.length == 0;
 }
 
 // 직업 이름 (예: "의사 · 전문의 ★3")
@@ -808,6 +797,9 @@ function drawPlayerList() {
     }
     if (p.treasures.length > 0) {
       family += " 💎×" + p.treasures.length;
+    }
+    if (p.assets.length > 0) {
+      family += " 📈×" + p.assets.length;
     }
     if (p.debt > 0) {
       family += " 🏦" + p.debt;
@@ -871,6 +863,205 @@ function updatePins() {
 }
 
 
+
+// =====================================================
+// 9-2. 메뉴 (룰렛 / 카드 / 상태 / 기타)
+//   지도 왼쪽 아래 메뉴 버튼 → 지도 위에 메뉴 창
+// =====================================================
+let panelCard = 0;   // 카드 메뉴에서 고른 카드 번호
+let panelPlayer = 0; // 상태 메뉴에서 보고 있는 플레이어
+
+function openPanel(kind) {
+  if (kind == "card") {
+    panelCard = 0;
+    drawCardPanel();
+  } else if (kind == "status") {
+    panelPlayer = turn;
+    drawStatusPanel();
+  } else {
+    drawEtcPanel();
+  }
+  menuPanel.classList.remove("hidden");
+}
+
+function closePanel() {
+  menuPanel.classList.add("hidden");
+}
+
+// 이 카드를 지금 쓸 수 있는지 (못 쓰면 이유 글자)
+function cardProblem(p, card) {
+  if (card.key == "guard") {
+    return "갖고만 있으면 자동으로 지켜 주는 카드예요";
+  }
+  if (card.key == "snipe" && luckyAhead(p).length == 0) {
+    return "앞 5칸 안에 ⭐ 럭키 칸이 없어요";
+  }
+  return "";
+}
+
+// 🎴 카드 메뉴 : 왼쪽 목록 / 오른쪽 카드 그림 / 아래 설명
+function drawCardPanel() {
+  const p = players[turn];
+  let list = "";
+  for (let i = 0; i < p.cards.length; i++) {
+    let cls = "panel-item";
+    if (i == panelCard) {
+      cls += " selected";
+    }
+    list += '<button class="' + cls + '" onclick="panelCard = ' + i + '; drawCardPanel()">' + p.cards[i].name + '</button>';
+  }
+
+  const card = p.cards[panelCard];
+  const problem = cardProblem(p, card);
+  let useBtn = '<button class="big-btn" onclick="askUseCard()">사용하기</button>';
+  if (problem != "") {
+    useBtn = '<button class="big-btn" disabled>사용 못 해요</button>';
+  }
+
+  menuPanel.innerHTML =
+    '<div class="panel-head">🎴 카드 <button class="panel-close" onclick="closePanel()">✕</button></div>' +
+    '<div class="panel-body">' +
+      '<div class="panel-list">' + list + '</div>' +
+      '<div class="card-big card-' + card.key + '">' +
+        '<div class="card-emoji">' + card.name.split(" ")[0] + '</div>' +
+        '<div>' + card.name.split(" ").slice(1).join(" ") + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="panel-desc">' + card.desc + (problem != "" ? '<br><small>⚠️ ' + problem + '</small>' : '') + '</div>' +
+    '<div class="panel-foot">' + useBtn + '</div>';
+}
+
+// "OO 카드를 사용할까요?" → 네 / 아니오
+function askUseCard() {
+  const card = players[turn].cards[panelCard];
+  menuPanel.innerHTML =
+    '<div class="panel-ask">' +
+      '<p><b>' + card.name + '</b>을(를) 사용할까요?</p>' +
+      '<button class="big-btn" onclick="closePanel(); useCard(panelCard)">네</button>' +
+      '<button class="big-btn gray" onclick="drawCardPanel()">아니오</button>' +
+    '</div>';
+}
+
+// 📋 상태 메뉴 : 직업 / 연애 / 내 집 / 보물
+function drawStatusPanel() {
+  const p = players[panelPlayer];
+
+  // 위쪽 : 플레이어 고르기
+  let tabs = "";
+  for (const other of players) {
+    let cls = "panel-tab";
+    if (other.id == p.id) {
+      cls += " selected";
+    }
+    tabs += '<button class="' + cls + '" onclick="panelPlayer = ' + other.id + '; drawStatusPanel()"><img src="' + other.img + '"> ' + other.name + '</button>';
+  }
+
+  // 직업
+  let jobBox = "<p>아직 직업이 없어요.<br><small>💼 취업 칸에서 골라요</small></p>";
+  if (p.job != null) {
+    const job = jobs[p.job];
+    const now = job.grades[p.grade];
+    let next = '<small>최고 랭크! 👑</small>';
+    if (p.grade < job.grades.length - 1) {
+      const n = job.grades[p.grade + 1];
+      next = '<small>다음 랭크 ▶ ' + n.title + '<br>' + needText(n.need) + '<br>진급 심사 : 월급날 룰렛 + ' + statNames[job.main] + '×0.1 ≥ 15</small>';
+    }
+    let stars = "";
+    for (let k = 0; k <= p.grade; k++) {
+      stars += "★";
+    }
+    jobBox = '<p>' + job.name + '<br><b>' + now.title + '</b></p>' +
+             '<div class="rank-num">' + (p.grade + 1) + '<span>' + stars + '</span></div>' +
+             '<p>월급 ' + won(now.salary) + '</p>' + next;
+  }
+
+  // 연애
+  let loveBox = "<p>🙋 솔로<br><small>♥ 연애 칸에서 만나요</small></p>";
+  let heart = "";
+  if (p.spouse != null) {
+    loveBox = '<p>💍 ' + p.spouse.name + '</p>';
+    heart = p.spouse.love + "%";
+  } else if (p.date != null) {
+    loveBox = '<p>💕 ' + p.date.name + '</p>';
+    heart = p.date.love + "%";
+  }
+  if (heart == "100%") {
+    heart = "MAX";
+  }
+  if (heart != "") {
+    loveBox += '<div class="heart">' + heart + '</div>';
+  }
+  if (p.kids.length > 0) {
+    let kids = "";
+    for (const kid of p.kids) {
+      let job = "어린이";
+      if (kid.job != null) {
+        job = kid.job.name;
+      }
+      kids += kid.name + "(" + job + ") ";
+    }
+    loveBox += '<small>' + kidIcons(p) + ' ' + kids + '</small>';
+  }
+
+  // 내 집
+  let houseBox = "<p>내 집 마련 칸에서<br>마련해요</p>";
+  if (p.house != null) {
+    houseBox = '<p>🏠 ' + p.house.name + '</p><p>팔 때 <b>' + won(p.house.sell) + '</b></p>';
+  }
+  let owned = "";
+  for (const a of p.assets) {
+    owned += '<small>' + a.icon + ' ' + a.name + ' (' + won(assetValue(a)) + ')</small><br>';
+  }
+  if (owned != "") {
+    houseBox += '<p class="owned">' + owned + '</p>';
+  }
+
+  // 보물
+  let icons = "";
+  for (const t of p.treasures) {
+    icons += t.icon;
+  }
+  const treasureBox = '<p>' + p.treasures.length + '개 ' + icons + '</p><p><b>' + won(treasureValue(p)) + '</b></p>';
+
+  // 능력치 등급
+  let stats = "";
+  for (const key in statNames) {
+    let mark = "";
+    if (p.talent == key) {
+      mark = ' <small>(재능 ×1.5)</small>';
+    }
+    stats += '<span>' + statNames[key] + ' ' + gradeHtml(p, key) + ' <small>' + p[key] + '</small>' + mark + '</span>';
+  }
+  let debt = "";
+  if (p.debt > 0) {
+    debt = '<span class="minus">🏦 대출 ' + p.debt + '건</span>';
+  }
+
+  menuPanel.innerHTML =
+    '<div class="panel-head">📋 상태 <button class="panel-close" onclick="closePanel()">✕</button></div>' +
+    '<div class="panel-tabs">' + tabs + '</div>' +
+    '<div class="panel-stats">' + stats + '<span>💰 ' + won(p.money) + '</span>' + debt + '</div>' +
+    '<div class="status-grid">' +
+      '<div class="status-box"><h4>직업</h4>' + jobBox + '</div>' +
+      '<div class="status-box love"><h4>연애</h4>' + loveBox + '</div>' +
+      '<div class="status-box"><h4>내집</h4>' + houseBox + '</div>' +
+      '<div class="status-box"><h4>보물</h4>' + treasureBox + '</div>' +
+    '</div>';
+}
+
+// ⚙️ 기타 메뉴 : 칸 설명, 최근 기록
+function drawEtcPanel() {
+  let log = "";
+  const items = logList.querySelectorAll("li");
+  for (let i = 0; i < items.length && i < 12; i++) {
+    log += '<li>' + items[i].innerHTML + '</li>';
+  }
+  menuPanel.innerHTML =
+    '<div class="panel-head">⚙️ 기타 <button class="panel-close" onclick="closePanel()">✕</button></div>' +
+    '<h4>칸 설명</h4><div class="legend-grid">' + document.getElementById("legend").innerHTML + '</div>' +
+    '<h4>최근 기록</h4><ul class="panel-log">' + log + '</ul>' +
+    '<div class="panel-foot"><button class="big-btn" onclick="closePanel(); toggleZoom()">🗺️ 전체 지도 보기 / 크게 보기</button></div>';
+}
 
 // 기록 남기기 (최근 기록이 위로)
 function addLog(text) {
@@ -947,6 +1138,15 @@ function applyResult(p, r) {
     parts.push("모두에게 " + moneyText(r.all) + "씩");
   }
 
+  // 🤝 다른 플레이어 직업 서비스 (강제로 돈을 내요)
+  if (r.service) {
+    parts.push(useService(p, r.service.job, r.service.fee));
+  }
+  // 🖼️ 다른 플레이어의 물건 소장 (사인 등)
+  if (r.collect) {
+    parts.push(collectItem(p, r.collect));
+  }
+
   // 🦹 갈취 / 🪤 함정 (1등을 노려요)
   if (r.steal) {
     parts.push(attack(p, r.steal, true));
@@ -984,6 +1184,70 @@ function applyResult(p, r) {
   }
   drawPlayerList();
   return parts.join("<br>");
+}
+
+// 그 직업을 가진 다른 플레이어 (여러 명이면 랭크가 가장 높은 사람, 없으면 null)
+function providerOf(job, p) {
+  let best = null;
+  for (const other of players) {
+    if (other.id != p.id && other.job != null && jobs[other.job].name == job && !other.retired) {
+      if (best == null || other.grade > best.grade) {
+        best = other;
+      }
+    }
+  }
+  return best;
+}
+
+// 🤝 서비스 : 그 직업 플레이어에게 fee 만큼 내요 (fee 가 마이너스면 반대로 받아요)
+function useService(p, job, fee) {
+  // 내가 그 직업이면 공짜
+  if (p.job != null && jobs[p.job].name == job) {
+    return "🤝 내가 " + job + "라서 직접 해결! (공짜)";
+  }
+  const pro = providerOf(job, p);
+  if (pro == null) {
+    p.money -= fee;
+    return "🤝 " + job + " 비용 " + moneyText(-fee);
+  }
+  p.money -= fee;
+  pro.money += fee;
+  pro.earned.self += fee;
+  pro.serves = (pro.serves || 0) + 1;
+  addLog("🤝 " + p.name + " → " + job + " " + pro.name + " " + won(fee));
+  floatText(pro, "🤝 " + moneyText(fee));
+  if (fee < 0) {
+    return "🤝 " + job + " " + pro.name + "에게서 " + won(-fee) + " 받았어요!";
+  }
+  return "🤝 " + job + " <b>" + pro.name + "</b>에게 " + won(fee) + "를 냈어요!";
+}
+
+// 🖼️ 소장품 : 그 직업 플레이어의 물건 (값 = base × 그 사람 랭크), 마지막에 시세 정산
+function collectItem(p, c) {
+  const pro = providerOf(c.job, p);
+  let owner = "유명 " + c.job;
+  let rank = 1;
+  if (pro != null) {
+    owner = pro.name;
+    rank = pro.grade + 1;
+  }
+  const item = { kind: "collect", icon: c.icon, name: owner + "의 " + c.item, base: c.base * rank };
+  p.assets.push(item);
+  return "🖼️ " + item.icon + " " + item.name + " 소장! (지금 가치 " + won(item.base) + ", 마지막에 시세 정산)";
+}
+
+// 산 물건의 지금 가치 (시세 배수 적용)
+function assetValue(a) {
+  return Math.round(a.base * marketMult[a.kind]);
+}
+
+// 부동산 · 투자 · 소장품 가치 합계
+function assetsValue(p) {
+  let sum = 0;
+  for (const a of p.assets) {
+    sum += assetValue(a);
+  }
+  return sum;
 }
 
 // 🏦 돈이 마이너스면 대출을 받아서 0 이상으로 (1건 = debtUnit 만원, 어른만)
@@ -1055,6 +1319,7 @@ function attack(p, amount, steal) {
 
 function startTurn() {
   const p = players[turn];
+  closePanel();
   busy = p.cpu; // 컴퓨터 차례에는 버튼을 막아요
   p.metThisMove = false;
   rollText.textContent = "";
@@ -1631,6 +1896,9 @@ function arrive(p) {
   else if (t.type == "treasure") {
     treasureTile(p, img);
   }
+  else if (t.type == "shop") {
+    shopTile(p, img);
+  }
   else if (t.type == "love") {
     loveTile(p, img);
   }
@@ -1791,6 +2059,93 @@ function luckyTile(p, img) {
   });
 }
 
+// 🏪 상점 칸 : 상품 3개가 랜덤으로 진열 → 하나 사거나 그냥 나가기
+//   (닌텐도 인생게임처럼 아무 때나 열리지 않고, 상점 칸에 멈췄을 때만!)
+function shopTile(p, img) {
+  // 상품 섞어서 3개 고르기
+  const pool = shopItems.slice();
+  pool.sort(function () {
+    return Math.random() - 0.5;
+  });
+  const offers = [];
+  for (const item of pool) {
+    let same = false;
+    for (const o of offers) {
+      if (o.name == item.name) {
+        same = true;
+      }
+    }
+    if (!same) {
+      offers.push(item);
+    }
+    if (offers.length == 3) {
+      break;
+    }
+  }
+
+  const kindName = { estate: "🏢 부동산", stock: "📈 투자", collect: "🖼️ 수집품", card: "🎴 카드" };
+  const cpuItem = cpuShopChoice(p, offers);
+  const buttons = [];
+  for (const item of offers) {
+    let desc = kindName[item.kind] + " · " + won(item.price);
+    if (item.kind == "card") {
+      desc = "🎴 카드 1장 랜덤 · " + won(item.price);
+    }
+    const tooPoor = p.money < item.price;
+    if (tooPoor) {
+      desc += " (돈 부족)";
+    }
+    buttons.push({
+      text: item.icon + " " + item.name,
+      desc: desc,
+      cpuPick: item == cpuItem,
+      action: function () {
+        buyItem(p, item, img);
+      }
+    });
+    if (tooPoor) {
+      buttons[buttons.length - 1].action = function () {
+        showPopup(img, "🏪 돈이 모자라요", won(item.price) + "이 필요해요.");
+      };
+    }
+  }
+  buttons.push({ text: "그냥 나가기", cpuPick: cpuItem == null, action: nextTurn });
+
+  showPopup(img, "🏪 상점", "오늘의 상품! 하나 살 수 있어요.<br><small>부동산 · 투자 · 수집품은 게임이 끝날 때 📈 시세 룰렛으로 값이 정해져요</small>", buttons);
+}
+
+// 사기
+function buyItem(p, item, img) {
+  p.money -= item.price;
+  addLog(p.name + " : 🏪 " + item.name + " 구입 (" + won(item.price) + ")");
+
+  if (item.kind == "card") {
+    const summary = applyResult(p, { card: true });
+    showPopup(img, "🎴 카드 뽑기!", "어떤 카드가 나왔을까요?" + resultHtml(summary));
+    return;
+  }
+  p.assets.push({ kind: item.kind, icon: item.icon, name: item.name, base: item.base });
+  drawPlayerList();
+  showPopup(img, "🏪 " + item.icon + " " + item.name + " 구입!",
+    won(item.price) + "에 샀어요.<br>게임이 끝날 때 📈 시세 룰렛으로 가치가 정해져요!");
+}
+
+// 컴퓨터 : 돈이 넉넉하면 부동산 > 수집품 > 투자 > 카드 순서로
+function cpuShopChoice(p, offers) {
+  const order = ["estate", "collect", "stock", "card"];
+  for (const kind of order) {
+    for (const item of offers) {
+      if (item.kind == kind && p.money >= item.price + 100) {
+        if (item.kind == "card" && p.cards.length >= 3) {
+          continue;
+        }
+        return item;
+      }
+    }
+  }
+  return null;
+}
+
 // 💎 보물 칸 : 보물 룰렛 → 마지막에 보물 값만큼 자산에 더해져요
 function treasureTile(p, img) {
   const labels = [];
@@ -1895,7 +2250,14 @@ function pickEvent(p, list) {
   for (const ev of list) {
     if (matches(p, ev.when)) {
       candidates.push(ev);
-      if (ev.when != undefined) {
+      let linked = false;
+      if (ev.service && providerOf(ev.service.job, p) != null) {
+        linked = true;
+      }
+      if (ev.collect && providerOf(ev.collect.job, p) != null) {
+        linked = true;
+      }
+      if (ev.when != undefined || linked) {
         candidates.push(ev);
         candidates.push(ev);
       }
@@ -1904,8 +2266,11 @@ function pickEvent(p, list) {
   return pick(candidates);
 }
 
-// 상황 이벤트면 팝업 위에 작은 표시
+// 상황 이벤트 / 플레이어 연결 이벤트면 팝업 위에 작은 표시
 function situationTag(ev) {
+  if (ev.service || ev.collect) {
+    return '<div class="situ link">🤝 플레이어 연결 이벤트 (강제!)</div>';
+  }
   if (ev.when == undefined) {
     return "";
   }
@@ -2593,6 +2958,9 @@ function tileScore(p, t) {
   if (t.type == "lucky" || t.type == "treasure") {
     return 3;
   }
+  if (t.type == "shop" && p.money >= 200) {
+    return 2;
+  }
   return 0;
 }
 
@@ -2827,13 +3195,9 @@ function nextTurn() {
   turn = (turn + 1) % players.length;
 
   // 모두 한 번씩 했으면 (= 한 턴 끝)
+  // (턴 수는 대략이에요. 지도 길이가 모드 턴 수에 맞춰져 있고, 모두 골인하면 끝나요)
   if (turn == 0) {
     round++;
-    // 모드의 턴 수를 다 쓰면 게임 끝 (닌텐도 인생게임처럼)
-    if (round >= gameMode.turns) {
-      endGame();
-      return;
-    }
     if (round % minigameEvery == 0) {
       miniPending = true;
     }
@@ -3114,9 +3478,9 @@ function playSpin(p) {
 //   순위(지난번과 비교) + 순위 그래프 + 캐릭터별 현재 상태
 // =====================================================
 
-// 총자산 = 현금 + 집 판 돈 + 보물 값 - 대출 갚을 돈 (대출 1건 = 원금의 1.5배)
+// 총자산 = 현금 + 집 판 돈 + 보물 값 + 부동산·투자·소장품(시세) - 대출 갚을 돈 (대출 1건 = 원금의 1.5배)
 function totalOf(p) {
-  let total = p.money + treasureValue(p) - p.debt * debtPenalty;
+  let total = p.money + treasureValue(p) + assetsValue(p) - p.debt * debtPenalty;
   if (p.house != null) {
     total += p.house.sell;
   }
@@ -3301,7 +3665,42 @@ function statusCard(p) {
 function endGame() {
   busy = true;
   updateScreen();
-  showAwards();
+  marketSettle(0);
+}
+
+// 📈 시세 정산 : 부동산 · 주식 · 수집품 시세 룰렛 (가진 사람이 있는 종류만)
+function marketSettle(i) {
+  if (i >= markets.length) {
+    showAwards();
+    return;
+  }
+  const m = markets[i];
+  let owners = "";
+  for (const p of players) {
+    for (const a of p.assets) {
+      if (a.kind == m.kind) {
+        owners += a.icon + " " + p.name + " : " + a.name + "<br>";
+      }
+    }
+  }
+  if (owners == "") {
+    marketSettle(i + 1);
+    return;
+  }
+  showRoulette(null, "📈 시세 정산 : " + m.name, owners, m.slots, function (label) {
+    marketMult[m.kind] = Number(label.replace("×", ""));
+    addLog("📈 " + m.name + " " + label);
+    let text = "";
+    for (const p of players) {
+      for (const a of p.assets) {
+        if (a.kind == m.kind) {
+          text += a.icon + " " + p.name + " " + a.name + " : " + won(a.base) + " → <b>" + won(assetValue(a)) + "</b><br>";
+        }
+      }
+    }
+    showMini("📈 " + m.name + " " + label,
+      text + '<br><button class="big-btn" onclick="marketSettle(' + (i + 1) + ')">다음</button>');
+  });
 }
 
 // 🏆 시상식 : 칭호마다 가장 잘한 사람에게 상금 (같으면 모두)
@@ -3311,7 +3710,9 @@ function showAwards() {
     { name: "🎮 미니게임 킹", desc: "미니게임에서 가장 많이 이겼다", value: function (p) { return p.miniWins; } },
     { name: "🤝 인연 부자", desc: "다른 사람과 가장 많이 인연을 맺었다", value: function (p) { return p.meets; } },
     { name: "👨‍👩‍👧 대가족", desc: "아이를 가장 많이 키웠다", value: function (p) { return p.kids.length; } },
-    { name: "💼 월급왕", desc: "직업 랭크가 가장 높다", value: function (p) { if (p.job == null) { return 0; } return p.grade + 1; } }
+    { name: "💼 월급왕", desc: "직업 랭크가 가장 높다", value: function (p) { if (p.job == null) { return 0; } return p.grade + 1; } },
+    { name: "🤝 인기 전문가", desc: "다른 플레이어에게 서비스를 가장 많이 해 줬다", value: function (p) { return p.serves || 0; } },
+    { name: "🏢 투자의 신", desc: "부동산 · 투자 · 소장품 가치가 가장 크다", value: function (p) { return assetsValue(p); } }
   ];
 
   let html = "";
@@ -3410,6 +3811,9 @@ function showResult() {
     html += '<hr>';
     html += '<div>현금 ' + won(p.money) + '</div>';
     html += '<div>🏠 집 ' + won(p.houseValue) + ' · 💎 보물 ' + won(treasureValue(p)) + '</div>';
+    if (p.assets.length > 0) {
+      html += '<div>📈 부동산·투자·소장품 ' + won(assetsValue(p)) + '</div>';
+    }
     if (p.debt > 0) {
       html += '<div class="minus">🏦 대출 상환 -' + won(p.debt * debtPenalty) + '</div>';
     }
@@ -3444,7 +3848,7 @@ document.addEventListener("keydown", function (e) {
     return;
   }
   const inGame = !document.getElementById("gameScreen").classList.contains("hidden");
-  const noWindow = popup.classList.contains("hidden") && miniBox.classList.contains("hidden");
+  const noWindow = popup.classList.contains("hidden") && miniBox.classList.contains("hidden") && menuPanel.classList.contains("hidden");
   if (e.code == "Space" && inGame && noWindow) {
     e.preventDefault();
     spin();

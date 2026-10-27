@@ -12,6 +12,10 @@
 //   steal : 🦹 갈취 - 1등(나 말고 가장 부자)에게서 이만큼 뺏어 와요 (🛡️ 수호 카드면 막히고 되돌려 받아요)
 //   trap  : 🪤 함정 - 1등(나 말고)이 이만큼 잃어요 (🛡️ 수호 카드면 막히고 내가 잃어요)
 //   flag  : 한 일을 기록 (예: flag: "piano") → 나중에 when: "piano" 이벤트가 나와요
+//   service : 🤝 다른 플레이어의 직업 서비스를 받고 돈을 그 사람에게 내요 (강제!)
+//             { job: "의사", fee: 30 } → 의사 플레이어에게 30만원 (없으면 그냥 병원에 냄, 내가 의사면 공짜)
+//   collect : 🖼️ 그 직업 플레이어의 물건(사인 등)을 소장 → 마지막에 시세 룰렛으로 값이 정해져요
+//             { job: "연예인", item: "사인", icon: "✍️", base: 20 } (값 = base × 그 사람 랭크)
 //
 // 이벤트에 when 을 쓰면 "그 상황인 사람"에게만 나와요 (3배 더 잘 나옴)
 //   single 솔로 / dating 연애 중 / married 결혼 / kids 자녀 있음
@@ -56,12 +60,12 @@ const areas = {
 };
 
 
-// ----- 3. 게임 모드 (닌텐도 인생게임과 같은 턴 수) -----
-// turns : 한 사람이 할 수 있는 턴 수 (다 쓰면 게임 끝 → 정산)
+// ----- 3. 게임 모드 (닌텐도 인생게임과 비슷한 턴 수) -----
+// turns : 골인까지 대략 몇 턴인지 (화면 안내용, 정해진 제한은 아니에요. 모두 골인하면 끝)
 const modes = [
   { key: "full",   name: "🌈 평생 모드",     turns: 49, desc: "아기 시절부터 황혼기까지, 평생을 모두 플레이해요. (약 49턴)" },
-  { key: "junior", name: "🧒 아이만 모드",   turns: 12, desc: "아기부터 고등학교 졸업(진로 선택)까지만 플레이해요. (12턴)" },
-  { key: "adult",  name: "👔 성인부터 모드", turns: 37, desc: "능력치 50, 기초 자금 50만원을 갖고 진로 선택부터 시작해요. (37턴)" }
+  { key: "junior", name: "🧒 아이만 모드",   turns: 12, desc: "아기부터 고등학교 졸업(진로 선택)까지만 플레이해요. (약 12턴)" },
+  { key: "adult",  name: "👔 성인부터 모드", turns: 37, desc: "능력치 50, 기초 자금 50만원을 갖고 진로 선택부터 시작해요. (약 37턴)" }
 ];
 const adultStart = { stat: 50, money: 50 }; // 성인부터 모드 시작 능력치 / 돈
 
@@ -303,11 +307,40 @@ const encounters = [
 ];
 
 
-// ----- 15. 🏆 시상식 (마지막에 칭호와 상금, 만원) -----
+// ----- 15. 🏪 상점 (상점 칸에 멈추면 이 중 3개가 랜덤으로 진열돼요) -----
+// kind : estate 부동산 / stock 투자 / collect 수집품 / card 카드 뽑기
+//   price : 사는 값,  base : 기본 가치 (마지막 📈 시세 정산 룰렛의 배수를 곱해요)
+const shopItems = [
+  { kind: "estate",  icon: "🏪", name: "동네 상가",        price: 200, base: 220 },
+  { kind: "estate",  icon: "🏢", name: "오피스텔",         price: 350, base: 380 },
+  { kind: "estate",  icon: "🌾", name: "시골 땅",          price: 120, base: 130 },
+  { kind: "estate",  icon: "🏬", name: "빌딩",             price: 900, base: 1000 },
+  { kind: "estate",  icon: "🏖️", name: "바닷가 펜션",      price: 500, base: 540 },
+  { kind: "stock",   icon: "📈", name: "우량주",           price: 150, base: 150 },
+  { kind: "stock",   icon: "🪙", name: "코인",             price: 80,  base: 80 },
+  { kind: "stock",   icon: "💹", name: "펀드",             price: 120, base: 120 },
+  { kind: "stock",   icon: "🚀", name: "스타트업 투자",    price: 100, base: 100 },
+  { kind: "stock",   icon: "🥇", name: "금 투자",          price: 200, base: 200 },
+  { kind: "collect", icon: "⌚", name: "명품 시계",        price: 120, base: 110 },
+  { kind: "collect", icon: "🧸", name: "한정판 피규어",    price: 40,  base: 40 },
+  { kind: "collect", icon: "👟", name: "희귀 운동화",      price: 60,  base: 60 },
+  { kind: "card",    icon: "🎴", name: "카드 뽑기",        price: 20,  base: 0 },
+  { kind: "card",    icon: "🎴", name: "카드 뽑기",        price: 20,  base: 0 }
+];
+
+// 📈 시세 정산 룰렛 (게임이 끝날 때 종류마다 한 번씩)
+const markets = [
+  { kind: "estate",  name: "🏢 부동산 시세", slots: ["×0.8", "×1", "×1", "×1.2", "×1.2", "×1.5", "×1.5", "×2", "×2", "×3"] },
+  { kind: "stock",   name: "📈 주식 시세",   slots: ["×0", "×0.5", "×0.5", "×1", "×1", "×1.5", "×2", "×2", "×3", "×5"] },
+  { kind: "collect", name: "🖼️ 수집품 시세", slots: ["×0.5", "×1", "×1", "×1.5", "×2", "×2", "×3", "×3", "×5", "×10"] }
+];
+
+
+// ----- 16. 🏆 시상식 (마지막에 칭호와 상금, 만원) -----
 const awardPrize = 90;
 
 
-// ----- 16. 칸에서 일어나는 이야기 -----
+// ----- 17. 칸에서 일어나는 이야기 -----
 // good 좋은 일 / bad 나쁜 일 / normal 보통 / event 선택 이벤트
 // event 의 choices : chance 는 성공 확률 (1 = 무조건 성공)
 const events = {
@@ -534,12 +567,16 @@ const events = {
       { when: "dating", text: "연인이 시험 기간에 도시락을 싸 줬어요 💕", int: 5, sense: 5 }
     ],
     bad: [
+      { text: "농구하다 발목을 삐었어요! 병원에 갔어요.", str: -5, service: { job: "의사", fee: 15 } },
+      { text: "자취방 계약서에 문제가 생겼어요. 변호사 상담!", service: { job: "변호사", fee: 10 } },
       { text: "학자금 대출 이자를 냈어요.", money: -20 },
       { text: "학점이 F... 재수강 확정", int: -10 },
       { text: "자취방 월세를 냈어요.", money: -10 },
       { when: "poor", text: "통장이 마이너스... 알바를 두 개 뛰어요.", str: -5, money: 10 }
     ],
     normal: [
+      { text: "노트북이 고장 나서 수리를 맡겼어요.", service: { job: "개발자", fee: 10 } },
+      { text: "좋아하는 연예인 팬미팅에 갔어요! 사인을 받았어요.", collect: { job: "연예인", item: "사인", icon: "✍️", base: 15 }, service: { job: "연예인", fee: 10 } },
       { text: "MT를 다녀왔어요.", money: -10, sense: 5 },
       { text: "도서관에서 밤을 샜어요.", int: 5 },
       { text: "알바비를 받았어요.", money: 10 }
@@ -564,6 +601,7 @@ const events = {
 
   young: {
     good: [
+      { text: "회사 대표가 일을 맡겨 줬어요! (외주 수당)", money: 30, service: { job: "회사원", fee: -20 } },
       { text: "회사에서 보너스를 받았어요!", money: 100 },
       { text: "친구가 빌려 간 돈을 갚았어요.", money: 30, sense: 5 },
       { text: "자기계발 책을 10권 읽었어요.", int: 10 },
@@ -575,6 +613,9 @@ const events = {
       { when: "college", text: "대학 동기가 좋은 일자리를 소개해 줬어요.", money: 30 }
     ],
     bad: [
+      { text: "안 좋은 칸을 밟아 크게 다쳤어요! 병원 치료를 받았어요.", str: -10, service: { job: "의사", fee: 40 } },
+      { text: "교통사고 합의 문제로 소송! 변호사를 선임했어요.", service: { job: "변호사", fee: 40 } },
+      { text: "회사 컴퓨터가 해킹당했어요! 개발자에게 복구를 맡겼어요.", service: { job: "개발자", fee: 30 } },
       { text: "자동차 사고가 났어요.", money: -80 },
       { text: "보이스피싱을 당했어요...", money: -50, sense: -5 },
       { text: "과로로 몸살이 났어요.", str: -10 },
@@ -584,6 +625,10 @@ const events = {
       { when: "poor", text: "카드값 독촉 전화가 왔어요...", sense: -5 }
     ],
     normal: [
+      { text: "친구들과 유명 맛집에서 외식했어요.", sense: 5, service: { job: "요리사", fee: 15 } },
+      { text: "야구장에 직관 갔어요! 사인볼을 받았어요.", collect: { job: "운동선수", item: "사인볼", icon: "⚾", base: 15 }, service: { job: "운동선수", fee: 10 } },
+      { text: "연예인 팬미팅에서 사인을 받았어요!", collect: { job: "연예인", item: "사인", icon: "✍️", base: 20 }, service: { job: "연예인", fee: 15 } },
+      { text: "유튜버 굿즈를 샀어요.", collect: { job: "유튜버", item: "한정판 굿즈", icon: "🧢", base: 10 }, service: { job: "유튜버", fee: 10 } },
       { text: "친구 결혼식에 축의금을 냈어요.", money: -10 },
       { text: "헬스장에 등록했어요.", money: -10, str: 5 },
       { text: "이사를 했어요.", money: -20 },
@@ -645,6 +690,9 @@ const events = {
       { when: "chicken", text: "치킨집 2호점을 열었어요!", money: 200 }
     ],
     bad: [
+      { text: "계단에서 넘어져 수술을 받았어요!", str: -10, service: { job: "의사", fee: 60 } },
+      { text: "이웃과 땅 경계 소송이 붙었어요!", service: { job: "변호사", fee: 50 } },
+      { text: "가게 홈페이지를 새로 만들었어요.", service: { job: "개발자", fee: 30 } },
       { text: "건강검진에서 이상이... 병원비", money: -100, str: -5 },
       { text: "자녀 학원비가 많이 들었어요.", money: -50 },
       { text: "차가 고장 났어요.", money: -40 },
@@ -652,6 +700,10 @@ const events = {
       { when: "nohouse", text: "월세가 또 올랐어요...", money: -50 }
     ],
     normal: [
+      { text: "결혼기념일에 유명 셰프의 식당에 갔어요.", sense: 5, service: { job: "요리사", fee: 25 } },
+      { text: "아이와 야구장 VIP석! 레전드 사인 유니폼을 샀어요.", collect: { job: "운동선수", item: "사인 유니폼", icon: "👕", base: 25 }, service: { job: "운동선수", fee: 20 } },
+      { text: "드라마 촬영장 구경! 배우에게 사인을 받았어요.", collect: { job: "연예인", item: "사인", icon: "✍️", base: 25 }, service: { job: "연예인", fee: 15 } },
+      { text: "회사 납품 계약을 맺었어요.", service: { job: "회사원", fee: 20 } },
       { text: "가족 여행을 다녀왔어요.", money: -30, sense: 5 },
       { text: "오랜만에 동창회에 갔어요.", sense: 5 },
       { text: "부모님께 용돈을 드렸어요.", money: -10, sense: 5 },
@@ -689,12 +741,16 @@ const events = {
       { when: "poor", text: "기초연금을 받았어요.", money: 30 }
     ],
     bad: [
+      { text: "허리를 다쳐서 입원했어요...", str: -10, service: { job: "의사", fee: 50 } },
+      { text: "유산 상속 문제로 변호사를 찾아갔어요.", service: { job: "변호사", fee: 40 } },
       { text: "허리 수술을 받았어요.", money: -80 },
       { text: "보이스피싱 전화에 속았어요...", money: -50 },
       { text: "기억력이 떨어졌어요.", int: -5 },
       { when: "rich", text: "자식들이 유산 때문에 다퉈요...", sense: -10 }
     ],
     normal: [
+      { text: "손주가 좋아하는 유튜버 굿즈를 사 줬어요.", collect: { job: "유튜버", item: "한정판 굿즈", icon: "🧢", base: 15 }, service: { job: "유튜버", fee: 15 } },
+      { text: "칠순 잔치를 유명 셰프에게 맡겼어요.", service: { job: "요리사", fee: 30 } },
       { text: "등산을 다녀왔어요.", str: 5 },
       { text: "손주에게 용돈을 줬어요.", money: -10, sense: 5 },
       { text: "텃밭에 상추를 심었어요." },

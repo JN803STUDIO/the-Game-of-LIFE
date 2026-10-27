@@ -31,7 +31,7 @@ const A = {
   SJOIN: { p: [720, 1320], type: "pay", area: "senior" },
   GOAL: { p: [160, 1260], type: "goal", area: "senior" },
 };
-const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card", LK = "lucky", T = "treasure";
+const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card", LK = "lucky", T = "treasure", S = "shop";
 
 // pattern 을 반복해서 n 칸짜리 목록 만들기
 function fill(n, pattern) {
@@ -40,7 +40,7 @@ function fill(n, pattern) {
   return out;
 }
 const CHILD = [N, G, E, B, LK, G, C, B, E, G];             // 어린 시절 (월급 없음)
-const STUDENT = [N, E, G, LV, B, N, LK, C, E, LV, P, G];   // 대학 / 취업 준비
+const STUDENT = [N, E, G, LV, B, S, LK, C, E, LV, P, G];   // 대학 / 취업 준비
 
 // 칸 수 = 닌텐도 인생게임 턴 수에 맞춤 (한 턴 평균 5.5칸)
 //   어린 시절(아기~고등학교) 12턴 ≈ 66칸, 어른(진로 선택~골인) 37턴 ≈ 200칸
@@ -55,16 +55,16 @@ const segs = [
   { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[2010, 720], [1720, 700]], area: "middle", wave: 1, types: [N, G, E, B, C, G, LK, E, B, G, T] },
   { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", wave: -1, types: [N, B, E, G, LK, C, G, B, T, E, "L:exam"] },
   { name: "대학교 길", from: "F1", to: "JOB", via: [[700, 520], [480, 480], [200, 620]], area: "college", wave: 1, types: ["L:college", ...fill(27, STUDENT)] },
-  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[700, 690], [500, 800]], area: "work", wave: -1, types: fill(24, [P, E, G, LV, B, N, LK, C, E, WK, P, G]) },
+  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[700, 690], [500, 800]], area: "work", wave: -1, types: fill(24, [P, E, G, LV, B, S, LK, C, E, WK, P, G]) },
   { name: "성인 초반", from: "JOB", to: "F2", via: [[330, 1080], [650, 1010], [1000, 1010]], area: "young", wave: 1,
-    types: [...fill(19, [P, WK, LV, G, E, B, N, LK, P, LV, C, G, E, B, T, LV]), "L:marry", ...fill(18, [G, LV, E, P, WK, B, LK, N, LV, C, P, E, T, G])] },
-  { name: "애정·가정 집중 길", from: "F2", to: "HOUSE", via: [[1480, 870], [1680, 830], [1900, 880]], area: "lovepath", wave: -1, types: fill(18, [LV, G, LV, E, LV, LK, LV, B, P]) },
-  { name: "출세 집중 길", from: "F2", to: "HOUSE", via: [[1480, 1010], [1680, 1080], [1900, 1040]], area: "workpath", wave: 1, types: fill(17, [WK, G, WK, P, WK, E, WK, LK, B, P]) },
-  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(44, [P, LV, G, B, E, WK, N, LK, C, G, P, B, E, T]) },
+    types: [...fill(19, [P, WK, LV, G, E, B, S, LK, P, LV, C, G, E, B, T, LV]), "L:marry", ...fill(18, [G, LV, E, P, WK, B, LK, S, LV, C, P, E, T, G])] },
+  { name: "애정·가정 집중 길", from: "F2", to: "HOUSE", via: [[1480, 870], [1680, 830], [1900, 880]], area: "lovepath", wave: -1, types: fill(18, [LV, G, LV, E, LV, LK, LV, S, P]) },
+  { name: "출세 집중 길", from: "F2", to: "HOUSE", via: [[1480, 1010], [1680, 1080], [1900, 1040]], area: "workpath", wave: 1, types: fill(17, [WK, G, WK, P, WK, S, WK, LK, B, P]) },
+  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(44, [P, LV, G, B, E, WK, S, LK, C, G, P, B, E, T]) },
   { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", wave: 1, types: [N, G, E, P, LK, B] },
-  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(20, [G, N, E, G, LV, P, LK, T]) },
+  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(20, [G, S, E, G, LV, P, LK, T]) },
   { name: "황혼기 - 한방역전섬", from: "F3", to: "SJOIN", via: [[970, 1180]], area: "gamble", wave: -1, types: fill(14, [E]) },
-  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(20, [N, G, E, B, P, LV, LK, T]) },
+  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(20, [N, G, E, B, P, S, LK, T]) },
 ];
 
 // 모든 좌표를 SCALE 배로 키우기
@@ -232,11 +232,65 @@ function free(x, y, r) {
 let seed = 11;
 const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
 
-let land = "", sand = "";
+// 바닷길 · 한방역전섬은 물 위 (모래 테두리)
+let water = "", sand = "";
 for (const t of tiles) {
-  sand += `<circle cx="${t.x}" cy="${t.y}" r="168" fill="#f6e3a8"/>`;
-  if (t.area !== "sea") land += `<circle cx="${t.x}" cy="${t.y}" r="150" fill="#86d97f"/>`;
+  if (t.area === "sea" || t.area === "gamble") {
+    water += `<circle cx="${t.x}" cy="${t.y}" r="190" fill="#4dabf7"/>`;
+    sand += `<circle cx="${t.x}" cy="${t.y}" r="62" fill="#ffe8a3"/>`;
+  }
 }
+// 길 아래 연한 잔디 띠
+let glow = "";
+for (const t of tiles) glow += `<circle cx="${t.x}" cy="${t.y}" r="80" fill="#b2f2bb" opacity="0.55"/>`;
+
+// 호수 (칸이 없는 빈 곳에)
+let lakes = "";
+for (let tries = 0, made = 0; tries < 4000 && made < 9; tries++) {
+  const x = rnd() * W, y = rnd() * H, r = 110 + rnd() * 120;
+  if (free(x, y, r + 30)) {
+    placed.push([x, y, r + 30]);
+    lakes += `<ellipse cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="${(r + 14).toFixed(0)}" ry="${(r * 0.7 + 14).toFixed(0)}" fill="#a5d8ff"/>
+<ellipse cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="${r.toFixed(0)}" ry="${(r * 0.7).toFixed(0)}" fill="#4dabf7"/>`;
+    made++;
+  }
+}
+
+// 도시 도로 (회색 바둑판, 칸 근처는 피해서)
+let streets = "";
+const GRID = 330;
+function streetLine(points) {
+  if (points.length < 3) return;
+  const d = "M" + points.map((q) => q[0].toFixed(0) + " " + q[1].toFixed(0)).join(" L");
+  streets += `<path d="${d}" stroke="#868e96" stroke-width="30" fill="none" stroke-linecap="round"/>
+<path d="${d}" stroke="#fff" stroke-width="3" stroke-dasharray="14 14" fill="none" opacity="0.8"/>`;
+}
+function streetFree(x, y) {
+  if (x < 20 || y < 20 || x > W - 20 || y > H - 20) return false;
+  for (const t of tiles) if (Math.hypot(x - t.x, y - t.y) < 95) return false;
+  for (const rd of roads) if (distSeg(x, y, rd) < 70) return false;
+  for (const p of placed) if (Math.hypot(x - p[0], y - p[1]) < p[2]) return false;
+  return true;
+}
+for (let gy = GRID / 2; gy < H; gy += GRID) {
+  let run = [];
+  for (let x = 0; x <= W; x += 30) {
+    if (streetFree(x, gy)) run.push([x, gy]);
+    else { streetLine(run); run = []; }
+  }
+  streetLine(run);
+}
+for (let gx = GRID / 2; gx < W; gx += GRID) {
+  let run = [];
+  for (let y = 0; y <= H; y += 30) {
+    if (streetFree(gx, y)) run.push([gx, y]);
+    else { streetLine(run); run = []; }
+  }
+  streetLine(run);
+}
+// 도로 자리는 장식이 안 놓이게
+for (let gy = GRID / 2; gy < H; gy += GRID) for (let x = 0; x <= W; x += 40) placed.push([x, gy, 26]);
+for (let gx = GRID / 2; gx < W; gx += GRID) for (let y = 0; y <= H; y += 40) placed.push([gx, y, 26]);
 
 const areaStyle = {
   baby: { label: "👶 아기", deco: ["🍼", "🧸", "🌷"] },
@@ -274,15 +328,16 @@ for (const area in areaStyle) {
       for (let dx = -w / 2; dx <= w / 2 && ok; dx += 15) ok = free(x + dx, y, 6);
       if (ok) {
         for (let dx = -w / 2; dx <= w / 2; dx += 15) placed.push([x + dx, y, 22]);
-        labels += `<g><rect x="${(x - w / 2).toFixed(0)}" y="${(y - 20).toFixed(0)}" width="${w}" height="40" rx="20" fill="#fff" stroke="#495057" stroke-width="3" opacity="0.92"/>
-<text x="${x.toFixed(0)}" y="${(y + 8).toFixed(0)}" font-size="22" font-weight="700" text-anchor="middle" font-family="Malgun Gothic, sans-serif" fill="#343a40">${text}</text></g>`;
+        labels += `<g><rect x="${(x - w / 2).toFixed(0)}" y="${(y - 16).toFixed(0)}" width="${w}" height="40" rx="20" fill="rgba(0,0,0,0.25)"/>
+<rect x="${(x - w / 2).toFixed(0)}" y="${(y - 20).toFixed(0)}" width="${w}" height="40" rx="20" fill="#343a40" stroke="#fff" stroke-width="3"/>
+<text x="${x.toFixed(0)}" y="${(y + 8).toFixed(0)}" font-size="22" font-weight="700" text-anchor="middle" font-family="Malgun Gothic, sans-serif" fill="#ffe066">${text}</text></g>`;
         done = true;
       }
     }
   }
   // 장식
   let count = 0;
-  for (let tries = 0; tries < 1500 && count < 14; tries++) {
+  for (let tries = 0; tries < 2500 && count < 22; tries++) {
     const t = at[Math.floor(rnd() * at.length)];
     const a = rnd() * Math.PI * 2, r = 60 + rnd() * 100;
     const x = t.x + r * Math.cos(a), y = t.y + r * Math.sin(a);
@@ -294,19 +349,24 @@ for (const area in areaStyle) {
     }
   }
 }
-let waves = "";
-for (let i = 0; i < 260; i++) {
+// 빈 땅에 나무 · 집 · 건물
+const filler = ["🌳", "🌲", "🌳", "🏠", "🌳", "🏢", "🌲", "🏡", "🌳", "🏬"];
+for (let i = 0, made = 0; i < 6000 && made < 420; i++) {
   const x = rnd() * W, y = rnd() * H;
-  if (free(x, y, 30) && tiles.every((t) => Math.hypot(x - t.x, y - t.y) > 200)) {
-    waves += `<path d="M${x.toFixed(0)} ${y.toFixed(0)} q8 -8 16 0 t16 0" stroke="#fff" stroke-width="3" fill="none" opacity="0.6"/>`;
+  if (free(x, y, 20)) {
+    placed.push([x, y, 20]);
+    deco += `<text x="${x.toFixed(0)}" y="${(y + 12).toFixed(0)}" font-size="${(26 + rnd() * 12).toFixed(0)}" text-anchor="middle" ${EMOJI}>${filler[made % filler.length]}</text>`;
+    made++;
   }
 }
 save("ui/map-bg.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
-<defs><linearGradient id="sea" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#74c0fc"/><stop offset="1" stop-color="#4dabf7"/></linearGradient></defs>
-<rect width="${W}" height="${H}" fill="url(#sea)"/>
-${waves}
+<defs><linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8ce99a"/><stop offset="1" stop-color="#51cf66"/></linearGradient></defs>
+<rect width="${W}" height="${H}" fill="url(#grass)"/>
+${water}
+${lakes}
+${streets}
+${glow}
 ${sand}
-${land}
 ${deco}
 ${labels}
 </svg>`);
@@ -315,9 +375,9 @@ ${labels}
 function icon(symbol, c1, c2, isEmoji) {
   const font = isEmoji ? EMOJI : 'font-family="Arial Black, sans-serif" font-weight="900" fill="#fff" stroke="rgba(0,0,0,0.25)" stroke-width="2"';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <defs><radialGradient id="g" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></radialGradient></defs>
-  <circle cx="50" cy="54" r="44" fill="rgba(0,0,0,0.22)"/>
-  <circle cx="50" cy="50" r="44" fill="url(#g)" stroke="#fff" stroke-width="6"/>
+  <defs><radialGradient id="g" cx="0.3" cy="0.25" r="0.9"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></radialGradient></defs>
+  <rect x="7" y="12" width="86" height="84" rx="18" fill="rgba(0,0,0,0.25)"/>
+  <rect x="7" y="6" width="86" height="86" rx="18" fill="url(#g)" stroke="#fff" stroke-width="6"/>
   <text x="50" y="${isEmoji ? 66 : 68}" font-size="${isEmoji ? 42 : 50}" text-anchor="middle" ${font}>${symbol}</text>
 </svg>`;
 }
@@ -332,6 +392,7 @@ const icons = {
   card: ["🎴", "#f3f0ff", "#845ef7", true],
   lucky: ["⭐", "#fff3bf", "#f08c00", true],
   treasure: ["💎", "#e3fafc", "#15aabf", true],
+  shop: ["🏪", "#ffe8cc", "#e8590c", true],
   marry: ["💍", "#fff3bf", "#f59f00", true],
   fork: ["🪧", "#ffe8cc", "#f76707", true],
   start: ["👶", "#fff3bf", "#fab005", true],
