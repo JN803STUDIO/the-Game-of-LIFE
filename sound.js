@@ -4,7 +4,7 @@
 //   나중에 디자인팀이 mp3 를 주면 이 파일만 바꾸면 돼요.
 //
 //   쓰는 법 : sfx("coin")      → 효과음 한 번
-//            playBgm("game")  → 배경음악 바꾸기
+//            playBgm("menu")  → 배경음악 바꾸기 (menu / mini / result)
 // =====================================================
 
 let audioCtx = null;   // 소리를 만드는 기계 (처음 클릭할 때 켜져요)
@@ -232,47 +232,136 @@ function markSound(mark) {
 }
 
 
-// ----- 3. 🎵 배경음악 (화면마다 다른 곡) -----
-//   melody : 한 박자에 음 하나 ("-" 쉼표), bass : 4박자마다 낮은 음 하나
+// ----- 3. 🎵 배경음악 -----
+//   곡 하나 = 16마디 (한 마디 = 8박자)
+//   melody : 한 박자에 음 하나, "-" 는 앞 음을 길게 끌기 (띵띵 끊기지 않게)
+//   chords : 마디마다 화음 하나 → 부드러운 반주 + 낮은 베이스
 //   speed  : 한 박자 길이 (ms, 작을수록 빠름)
+
+// 화음 이름 → 반주로 같이 누르는 음 3개 (첫 음의 한 옥타브 아래가 베이스)
+const chordNotes = {
+  C: "C4 E4 G4", Am: "A3 C4 E4", F: "F3 A3 C4", G: "G3 B3 D4",
+  Dm: "D4 F4 A4", Em: "E4 G4 B4", Bm: "B3 D4 F#4", D: "D4 F#4 A4",
+  E: "E4 G#4 B4", Bb: "A#3 D4 F4", Gm: "G3 A#3 D4"
+};
+
 const songs = {
-  // 타이틀 · 설정 화면 : 잔잔하게
-  title: {
+  // 🌸 봄날 (잔잔하게)
+  spring: {
     speed: 300, type: "sine",
-    melody: "E5 - G5 - C6 - G5 - A5 - G5 - E5 - - - F5 - E5 - D5 - C5 - D5 - - - G4 - - -",
-    bass: "C3 C3 A2 A2 F2 F2 G2 G2"
+    chords: "C Am F G C Am Dm G F G Em Am Dm G C C",
+    melody: [
+      "E5 - G5 - C6 - B5 A5", "A5 - - - E5 - - -", "F5 - A5 - C6 - A5 G5", "G5 - - - D5 - - -",
+      "E5 - G5 - C6 - D6 E6", "C6 - A5 - E5 - - -", "F5 - E5 - D5 - F5 -", "G5 - - - - - - -",
+      "A5 - - G5 F5 - A5 -", "B5 - - A5 G5 - - -", "G5 - - F5 E5 - G5 -", "A5 - - - C6 - - -",
+      "D6 - C6 - A5 - F5 -", "G5 - A5 - B5 - D6 -", "C6 - - - G5 - E5 -", "C5 - - - - - - -"
+    ].join(" ")
   },
-  // 게임 중 : 신나게
-  game: {
-    speed: 220, type: "triangle",
-    melody: "C5 E5 G5 E5 C5 E5 G5 C6 A5 G5 E5 G5 A5 - G5 - F5 A5 C6 A5 G5 E5 C5 E5 D5 E5 F5 D5 C5 - - -",
-    bass: "C3 C3 A2 A2 F2 F2 G2 C3"
+  // 🚶 산책 (가볍게)
+  walk: {
+    speed: 260, type: "sine",
+    chords: "G Em C D G Em Am D C D Bm Em C D G G",
+    melody: [
+      "B4 - D5 - G5 - - B4", "E5 - D5 - B4 - - -", "C5 - E5 - G5 - E5 -", "F#5 - - - D5 - - -",
+      "G5 - F#5 - G5 - B5 -", "A5 - G5 - E5 - - -", "C5 - E5 - A5 - G5 -", "F#5 - - - - - D5 -",
+      "E5 - - - G5 - - -", "F#5 - - - A5 - - -", "B5 - A5 - F#5 - D5 -", "E5 - - - - - - -",
+      "G5 - E5 - C5 - E5 -", "F#5 - A5 - D6 - C6 -", "B5 - - - G5 - D5 -", "G5 - - - - - - -"
+    ].join(" ")
   },
-  // 미니게임 : 빠르고 긴장감 있게
+  // ☕ 오후의 카페 (여유롭게)
+  cafe: {
+    speed: 320, type: "sine",
+    chords: "F Dm Bb C F Dm Gm C Bb C Am Dm Gm C F F",
+    melody: [
+      "A4 - C5 - F5 - - -", "D5 - F5 - A5 - - -", "A#5 - A5 - G5 - F5 -", "G5 - - - - - E5 -",
+      "F5 - A5 - C6 - - -", "A5 - F5 - D5 - - -", "G5 - A#5 - D6 - C6 A#5", "A5 - - - G5 - - -",
+      "F5 - - D5 F5 - A#5 -", "A5 - G5 - E5 - C5 -", "E5 - - C5 E5 - A5 -", "F5 - - - D5 - - -",
+      "A#4 - D5 - G5 - F5 -", "E5 - G5 - C6 - A#5 -", "A5 - - - C5 - - -", "F5 - - - - - - -"
+    ].join(" ")
+  },
+  // 🌙 별빛 밤 (조금 감성적으로)
+  night: {
+    speed: 340, type: "sine",
+    chords: "Am F C G Am F G E F G C Am Dm E Am Am",
+    melody: [
+      "A4 - C5 - E5 - A5 -", "G5 - F5 - E5 - C5 -", "E5 - - - G5 - - -", "D5 - - - - - - -",
+      "A4 - C5 - E5 - A5 -", "C6 - B5 - A5 - F5 -", "G5 - - - B5 - D6 -", "B5 - - - G#5 - - -",
+      "A5 - - - F5 - C6 -", "B5 - - - G5 - D5 -", "E5 - G5 - C6 - E6 -", "C6 - - - A5 - - -",
+      "F5 - A5 - D6 - C6 -", "B5 - G#5 - E5 - B4 -", "A4 - - - C5 - E5 -", "A5 - - - - - - -"
+    ].join(" ")
+  },
+  // 🎮 미니게임 (빠르고 긴장감 있게)
   mini: {
-    speed: 160, type: "square",
-    melody: "A4 - C5 A4 E5 - C5 A4 G4 - B4 G4 D5 - B4 G4 F4 - A4 F4 C5 - A4 F4 E4 G#4 B4 E5 G#5 - E5 -",
-    bass: "A2 A2 G2 G2 F2 F2 E2 E2"
+    speed: 180, type: "triangle",
+    chords: "Am G F E Am G F E Dm Am E Am Dm Am E E",
+    melody: [
+      "A4 C5 E5 C5 A4 C5 E5 A5", "G4 B4 D5 B4 G4 B4 D5 G5", "F4 A4 C5 A4 F4 A4 C5 F5", "E4 G#4 B4 E5 G#5 - E5 -",
+      "A5 - G5 - E5 - C5 -", "B4 - D5 - G5 - B5 -", "A5 - F5 - C5 - A4 -", "G#4 - B4 - E5 - - -",
+      "D5 F5 A5 F5 D5 F5 A5 D6", "C6 A5 E5 A5 C6 A5 E5 C5", "B4 E5 G#5 B5 G#5 E5 B4 G#4", "A4 - C5 - E5 - A5 -",
+      "D6 - A5 - F5 - D5 -", "E5 - A5 - C6 - E6 -", "B5 - G#5 - E5 - B4 -", "G#5 - - - E5 - - -"
+    ].join(" ")
   },
-  // 시상식 · 인생 보고서 : 따뜻하게
+  // 🏆 시상식 · 인생 보고서 (따뜻하게)
   result: {
-    speed: 340, type: "triangle",
-    melody: "C5 - - E5 G5 - - - A5 - G5 - E5 - C5 - F5 - - A5 G5 - E5 - D5 - E5 - C5 - - -",
-    bass: "C3 C3 F2 C3 F2 F2 G2 C3"
+    speed: 340, type: "sine",
+    chords: "C F C G Am F G C C F C G Am F G C",
+    melody: [
+      "C5 - - E5 G5 - - -", "A5 - G5 - E5 - C5 -", "F5 - - A5 G5 - E5 -", "D5 - E5 - D5 - - -",
+      "C5 - E5 - A5 - G5 -", "F5 - A5 - C6 - A5 -", "G5 - - - B5 - D6 -", "C6 - - - - - - -",
+      "E5 - - G5 C6 - - -", "C6 - A5 - F5 - A5 -", "G5 - - E5 C5 - E5 -", "D5 - F5 - B5 - - -",
+      "A5 - G5 - E5 - C5 -", "F5 - A5 - C6 - D6 -", "B5 - - - D6 - - -", "C6 - - - - - - -"
+    ].join(" ")
   }
 };
 
+// 곡 목록 : 한 곡이 끝나면 다음 곡으로 (메뉴 · 게임 중에는 같은 목록을 끊지 않고 이어서 틀어요)
+const playlists = {
+  menu: ["spring", "walk", "cafe", "night"],
+  mini: ["mini"],
+  result: ["result"]
+};
+let bgmSong = 0; // 목록에서 몇 번째 곡인지
+
+// 지금 틀어야 하는 곡
+function nowSong() {
+  const list = playlists[bgmName];
+  return songs[list[bgmSong % list.length]];
+}
+
 function playBgm(name) {
   if (bgmName == name) {
-    return; // 이미 나오는 곡
+    return; // 이미 나오는 목록 (끊지 않고 계속)
   }
   bgmName = name;
+  bgmSong = Math.floor(Math.random() * playlists[name].length); // 매번 다른 곡부터
+  startSong();
+}
+
+// 지금 곡을 처음부터 틀기
+function startSong() {
   bgmStep = 0;
   clearInterval(bgmTimer);
   bgmTimer = null;
   if (musicOn) {
-    bgmTimer = setInterval(bgmBeat, songs[name].speed);
+    bgmTimer = setInterval(bgmBeat, nowSong().speed);
   }
+}
+
+// 부드러운 음 (천천히 커졌다가 작아져요 → 띵! 하고 튀지 않게)
+function softTone(freq, length, type, volume) {
+  const ctx = audio();
+  const start = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + length);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + length + 0.05);
 }
 
 // 한 박자 연주
@@ -281,18 +370,35 @@ function bgmBeat() {
   if (ctx == null || ctx.state != "running") {
     return; // 아직 클릭 전이라 소리를 못 내요
   }
-  const song = songs[bgmName];
+  const song = nowSong();
   const notes = song.melody.split(" ");
-  const bass = song.bass.split(" ");
   const beat = song.speed / 1000; // 초 단위
 
-  const note = notes[bgmStep % notes.length];
-  if (note != "-") {
-    tone(noteFreq(note), 0, beat * 1.6, song.type, 0.035);
+  // 곡이 끝나면 다음 곡
+  if (bgmStep >= notes.length) {
+    bgmSong++;
+    startSong();
+    return;
   }
-  if (bgmStep % 4 == 0) {
-    const low = bass[Math.floor(bgmStep / 4) % bass.length];
-    tone(noteFreq(low), 0, beat * 4, "triangle", 0.06);
+
+  // 멜로디 : 뒤에 "-" 가 몇 개 있는지 세서 그만큼 길게
+  const note = notes[bgmStep];
+  if (note != "-") {
+    let length = 1;
+    while (notes[bgmStep + length] == "-") {
+      length++;
+    }
+    softTone(noteFreq(note), length * beat, song.type, 0.05);
+  }
+
+  // 마디 첫 박자 : 반주 화음 + 베이스
+  if (bgmStep % 8 == 0) {
+    const chords = song.chords.split(" ");
+    const chord = chordNotes[chords[bgmStep / 8]].split(" ");
+    for (const n of chord) {
+      softTone(noteFreq(n), beat * 8, "sine", 0.018);
+    }
+    softTone(noteFreq(chord[0]) / 2, beat * 8, "triangle", 0.05);
   }
   bgmStep++;
 }
@@ -301,14 +407,11 @@ function bgmBeat() {
 // ----- 4. 켜기 / 끄기 버튼 -----
 function toggleMusic() {
   musicOn = !musicOn;
-  const name = bgmName;
-  bgmName = "";
-  clearInterval(bgmTimer);
-  bgmTimer = null;
   if (musicOn) {
-    playBgm(name); // 같은 곡 처음부터 다시
+    startSong(); // 지금 곡 처음부터
   } else {
-    bgmName = name;
+    clearInterval(bgmTimer);
+    bgmTimer = null;
   }
   saveSound();
 }
@@ -352,4 +455,4 @@ document.addEventListener("click", function (e) {
 });
 
 drawSoundBtns();
-playBgm("title");
+playBgm("menu");

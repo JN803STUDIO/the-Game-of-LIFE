@@ -247,13 +247,11 @@ function showScreen(id) {
   }
   document.getElementById(id).classList.remove("hidden");
 
-  // 🎵 화면에 맞는 배경음악
-  if (id == "gameScreen") {
-    playBgm("game");
-  } else if (id == "resultScreen") {
+  // 🎵 화면에 맞는 배경음악 (메뉴와 게임 중에는 같은 곡 목록을 끊지 않고 이어서)
+  if (id == "resultScreen") {
     playBgm("result");
   } else {
-    playBgm("title");
+    playBgm("menu");
   }
 }
 
@@ -3433,7 +3431,7 @@ function closeMini() {
   miniBox.classList.add("hidden");
   miniBox.classList.remove("wide");
   mini = null;
-  playBgm("game");
+  playBgm("menu");
   continueGame();
 }
 
