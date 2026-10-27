@@ -111,6 +111,20 @@ const sounds = {
   click: function () {
     tone(660, 0, 0.05, "square", 0.04);
   },
+  // 팝업 창 열림 : 뽁!
+  pop: function () {
+    sweep(400, 900, 0, 0.1, "sine", 0.15);
+  },
+  // 룰렛 창 열림 : 두구두구
+  open: function () {
+    tone(196, 0, 0.1, "triangle", 0.15);
+    tone(196, 0.12, 0.1, "triangle", 0.15);
+    tone(262, 0.24, 0.2, "triangle", 0.15);
+  },
+  // 배너 지나감 : 슈웅~
+  whoosh: function () {
+    sweep(1200, 300, 0, 0.3, "sine", 0.06);
+  },
   // 한 칸 이동 : 통
   step: function () {
     tone(523, 0, 0.08, "triangle", 0.12);
@@ -154,10 +168,11 @@ const sounds = {
     tone(110, 0, 0.25, "square", 0.08);
     tone(98, 0.25, 0.4, "square", 0.08);
   },
-  // 내 차례 : 띵동
+  // 누구 차례 : 띵-동-댕
   turn: function () {
-    tone(784, 0, 0.2, "triangle", 0.12);
-    tone(1047, 0.15, 0.3, "triangle", 0.12);
+    tone(784, 0, 0.25, "triangle", 0.13);
+    tone(988, 0.15, 0.25, "triangle", 0.13);
+    tone(1175, 0.3, 0.4, "triangle", 0.13);
   },
   // 카드 : 휙!
   card: function () {

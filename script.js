@@ -1087,6 +1087,7 @@ function showBanner(text, color) {
   banner.style.background = color;
   banner.innerHTML = text;
   document.body.appendChild(banner);
+  sfx("whoosh");
 
   setTimeout(function () {
     banner.remove();
@@ -1616,6 +1617,7 @@ function showRoulette(p, title, text, slots, done) {
   chanceWheel.innerHTML = wheelSvg(slots);
   chanceBtn.disabled = false;
   chanceBox.classList.remove("hidden");
+  sfx("open");
 
   chanceBtn.onclick = function () {
     chanceBtn.disabled = true;
@@ -2931,6 +2933,7 @@ function showPopup(img, title, text, buttons) {
   document.getElementById("popupText").innerHTML = text + cpuNote;
 
   popup.classList.remove("hidden");
+  sfx("pop");
 
   // 컴퓨터 차례면 잠깐 보여 준 뒤 → 고른 버튼 표시 → 누르기
   popupCount++;
@@ -3311,6 +3314,7 @@ function showMini(title, html) {
   miniTitle.innerHTML = title;
   miniBody.innerHTML = html;
   miniBox.classList.remove("hidden");
+  sfx("pop");
 }
 
 function startMinigame() {
