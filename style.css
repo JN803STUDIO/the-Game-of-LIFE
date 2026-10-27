@@ -1668,3 +1668,29 @@ button {
 .status-box .owned {
   line-height: 1.4;
 }
+
+/* ===== 🎵 소리 켜기 · 끄기 버튼 (오른쪽 아래) ===== */
+#soundBox {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 50;
+}
+
+#soundBox button {
+  width: 42px;
+  height: 42px;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: #ffd43b;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+
+#soundBox button.off {
+  background: #ced4da;
+  opacity: 0.8;
+}

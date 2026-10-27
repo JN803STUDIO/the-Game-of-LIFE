@@ -155,10 +155,17 @@
     </div>
   </div>
 
-  <!-- 순서 중요! 데이터 → 서버 연결 → 게임 -->
+  <!-- 🎵 배경음악 / 🔊 효과음 켜기 · 끄기 (모든 화면 오른쪽 아래) -->
+  <div id="soundBox">
+    <button id="musicBtn" onclick="toggleMusic()">🎵</button>
+    <button id="sfxBtn" onclick="toggleSound()">🔊</button>
+  </div>
+
+  <!-- 순서 중요! 데이터 → 서버 연결 → 소리 → 게임 -->
   <script src="map.js"></script>
   <script src="events.js"></script>
   <script src="api.js"></script>
+  <script src="sound.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

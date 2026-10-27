@@ -78,7 +78,8 @@ const goalBonus = [300, 200, 100, 50];
 
 // 미니게임 : 몇 바퀴마다 할지
 const minigameEvery = 1;
-// 🎁 상금 룰렛 10칸 (money = 성인 1등 상금(만원), stat = 미성년자 1등 능력치)
+// 🎁 상품 룰렛 10칸 (money = 1등 상금(만원), stat = 1등 능력치)
+//   아이가 많을 때는 능력치 룰렛, 어른이 많을 때는 상금 룰렛이 나와요
 const miniPrizes = [
   { money: 5, stat: 5 }, { money: 5, stat: 5 }, { money: 5, stat: 5 },
   { money: 10, stat: 10 }, { money: 10, stat: 10 }, { money: 10, stat: 10 }, { money: 10, stat: 10 },
@@ -245,6 +246,15 @@ function showScreen(id) {
     document.getElementById(s).classList.add("hidden");
   }
   document.getElementById(id).classList.remove("hidden");
+
+  // 🎵 화면에 맞는 배경음악
+  if (id == "gameScreen") {
+    playBgm("game");
+  } else if (id == "resultScreen") {
+    playBgm("result");
+  } else {
+    playBgm("title");
+  }
 }
 
 function setupTitle() {
@@ -1110,6 +1120,11 @@ function applyResult(p, r) {
   if (r.money) {
     p.money += r.money;
     parts.push("💰" + moneyText(r.money));
+    if (r.money > 0) {
+      sfx("coin");
+    } else {
+      sfx("lose");
+    }
   }
 
   // 능력치 3개 (재능 능력치는 1.5배로 오름!)
@@ -1166,6 +1181,7 @@ function applyResult(p, r) {
       const card = drawCard();
       p.cards.push(card);
       parts.push("🎴 " + card.name + " 획득!");
+      sfx("card");
     } else {
       parts.push("🎴 카드가 꽉 찼어요");
     }
@@ -1267,6 +1283,7 @@ function checkDebt(p) {
     return "";
   }
   addLog(p.name + " : 🏦 자동 대출 " + count + "건");
+  sfx("bad");
   return "🏦 " + p.name + " 자동 대출 " + count + "건 (+" + won(count * debtUnit) + ")";
 }
 
@@ -1336,6 +1353,7 @@ function startTurn() {
     }
   }
 
+  sfx("turn");
   if (p.cpu) {
     showBanner("🤖 " + p.name + "의 차례!", p.color);
     setTimeout(cpuTurn, 1300);
@@ -1379,6 +1397,7 @@ function playCard(i) {
   }
   p.cards.splice(i, 1); // 카드 사용 → 손에서 없애기
   addLog(p.name + " : " + card.name + " 사용!");
+  sfx("card");
   showBanner(card.name + "<small>" + card.desc + "</small>", "#845ef7");
   rollWheel(randomInt(card.min, card.max));
 }
@@ -1461,7 +1480,11 @@ function spinWheel(num, done) {
   // 5바퀴(1800도) 돌고, 한 칸이 36도
   const angle = spinCount * 1800 - (num - 1) * 36;
   wheelImg.style.transform = "rotate(" + angle + "deg)";
-  setTimeout(done, 2100);
+  sfx("spin");
+  setTimeout(function () {
+    sfx("ding");
+    done();
+  }, 2100);
 }
 
 function afterRoll(num) {
@@ -1600,9 +1623,11 @@ function showRoulette(p, title, text, slots, done) {
     // 5바퀴 돌고 k번 칸이 위쪽 화살표에 오게 (칸 안에서 살짝 랜덤 위치)
     const angle = 1800 - k * 36 + randomInt(-12, 12);
     chanceWheel.firstChild.style.transform = "rotate(" + angle + "deg)";
+    sfx("spin");
 
     setTimeout(function () {
       chanceResult.innerHTML = slotText(slots[k]);
+      markSound(slots[k]);
       setTimeout(function () {
         chanceBox.classList.add("hidden");
         done(slots[k], k);
@@ -1678,6 +1703,7 @@ function stepTo(p, id, left) {
   const t = tiles[id];
   placePiece(p);
   follow(p);
+  sfx("step");
 
   const remain = left - 1; // 이 칸으로 온 뒤 남은 칸 수
   rollText.textContent = "남은 칸 : " + remain;
@@ -1977,6 +2003,7 @@ function promotion(p, after) {
     const before = job.grades[p.grade].salary;
     p.grade++;
     addLog(p.name + " : 🎉 RANK UP! " + next.title);
+    sfx("fanfare");
     drawPlayerList();
 
     let nextInfo = "최고 랭크 달성! 👑";
@@ -2118,6 +2145,7 @@ function shopTile(p, img) {
 function buyItem(p, item, img) {
   p.money -= item.price;
   addLog(p.name + " : 🏪 " + item.name + " 구입 (" + won(item.price) + ")");
+  sfx("shop");
 
   if (item.kind == "card") {
     const summary = applyResult(p, { card: true });
@@ -2485,6 +2513,7 @@ function confess(p, img) {
       p.spouse.love = 0;
       p.date = null;
       addLog(p.name + " : 💍 " + p.spouse.name + "와(과) 결혼!");
+      sfx("wedding");
       drawPlayerList();
 
       text = p.spouse.name + "와(과) 결혼해요!<br>축의금 룰렛을 돌려서 모두에게 축의금을 받아요!";
@@ -2543,6 +2572,7 @@ function genderRoulette(p, img) {
     p.kids.push({ name: name, gender: gender, age: 0, job: null });
     p.spouse.love = 0;
     addLog(p.name + " : 👶 " + name + " 탄생!");
+    sfx("baby");
     drawPlayerList();
 
     let who = "딸";
@@ -2831,6 +2861,7 @@ function goalTile(p, img) {
   p.finished = true;
   const summary = applyResult(p, { money: bonus });
   addLog(p.name + " : 🏁 " + finishCount + "등으로 골인!");
+  sfx("goal");
 
   let text = "인생 완주를 축하해요!";
   if (gameMode.key == "junior") {
@@ -3241,24 +3272,34 @@ function isAdult(p) {
   return areas[p.area].adult == true;
 }
 
-// 등수(0, 1, 2, 3)에 맞는 보상 : 미성년자는 능력치, 성인은 돈
-// 1등 상금(mini.prize) × 등수별 비율(miniShare)
+// 이번 미니게임 상품이 능력치인지 (절반 이상이 아직 아이면 능력치, 아니면 돈)
+function statPrizeTime() {
+  let kids = 0;
+  for (const p of players) {
+    if (!isAdult(p)) {
+      kids++;
+    }
+  }
+  return kids * 2 >= players.length;
+}
+
+// 등수(0, 1, 2, 3)에 맞는 보상 = 1등 상품(mini.prize) × 등수별 비율(miniShare)
 function miniReward(p, rank) {
   const r = {};
-  if (isAdult(p)) {
-    r.money = Math.round(mini.prize.money * miniShare[rank]);
-  } else {
+  if (mini.statPrize) {
     r[mini.game.stat] = Math.round(mini.prize.stat * miniShare[rank]);
+  } else {
+    r.money = Math.round(mini.prize.money * miniShare[rank]);
   }
   return r;
 }
 
-// 1등 상품 글자 (미성년자는 능력치, 성인이 되면 자동으로 돈)
-function rewardText(p) {
-  if (isAdult(p)) {
-    return "💰 " + won(mini.prize.money);
+// 1등 상품 글자
+function rewardText() {
+  if (mini.statPrize) {
+    return statNames[mini.game.stat] + " +" + mini.prize.stat;
   }
-  return statNames[mini.game.stat] + " +" + mini.prize.stat;
+  return "💰 " + won(mini.prize.money);
 }
 
 const miniBox = document.getElementById("mini");
@@ -3278,6 +3319,8 @@ function startMinigame() {
 
   const game = pick(minigames);
   mini = { game: game, index: 0, scores: [], prize: null };
+  playBgm("mini");
+  sfx("start");
 
   showMini("🎮 미니게임 : " + game.name,
     game.desc + "<br><br>먼저 <b>🎁 상금 룰렛</b>으로 1등 상금을 정해요!" +
@@ -3287,14 +3330,26 @@ function startMinigame() {
 // 🎁 상금 룰렛 : 1등 상금 정하기 (2등은 절반, 3등은 30%)
 function spinPrize() {
   const labels = [];
+  mini.statPrize = statPrizeTime();
+  const statName = statNames[mini.game.stat];
   for (const prize of miniPrizes) {
-    labels.push(prize.money + "만");
+    if (mini.statPrize) {
+      labels.push("+" + prize.stat);
+    } else {
+      labels.push(prize.money + "만");
+    }
   }
-  showRoulette(null, "🎁 상금 룰렛", "이번 미니게임의 1등 상금은?<br>(미성년자는 능력치로 받아요)", labels, function (label, k) {
+  let title = "🎁 상금 룰렛";
+  let text = "이번 미니게임의 1등 상금은?";
+  if (mini.statPrize) {
+    title = "🎁 능력치 룰렛";
+    text = "이번 미니게임 1등은 <b>" + statName + "</b>이(가) 얼마나 오를까요?";
+  }
+  showRoulette(null, title, text, labels, function (label, k) {
     mini.prize = miniPrizes[k];
     showMini("🎮 미니게임 : " + mini.game.name,
       mini.game.desc +
-      '<div class="prize-box">🥇 1등 상금 <b>' + won(mini.prize.money) + '</b> (미성년자 능력치 +' + mini.prize.stat + ')' +
+      '<div class="prize-box">🥇 1등 상품 <b>' + rewardText() + '</b>' +
       '<br><small>🥈 2등 절반 · 🥉 3등 30%</small></div>' +
       '<button class="big-btn" onclick="miniNextPlayer()">시작!</button>');
   });
@@ -3317,7 +3372,7 @@ function miniNextPlayer() {
 
   showMini(mini.game.name,
     '<img src="' + p.img + '" width="80"><br><b style="color:' + p.color + '">' + p.name + '</b>의 차례!' +
-    '<br>🎁 1등 상품 : ' + rewardText(p) +
+    '<br>🎁 1등 상품 : ' + rewardText() +
     '<br><br><button class="big-btn" onclick="mini.game.play(players[mini.index])">준비 완료!</button>');
 }
 
@@ -3364,6 +3419,7 @@ function miniFinish() {
             '</div>';
   }
   addLog("🎮 미니게임 1등 : " + ranked[0].name);
+  sfx("fanfare");
 
   html += '<br><button class="big-btn" onclick="closeMini()">계속하기</button>';
   showMini("🏆 미니게임 결과", html);
@@ -3373,6 +3429,7 @@ function closeMini() {
   miniBox.classList.add("hidden");
   miniBox.classList.remove("wide");
   mini = null;
+  playBgm("game");
   continueGame();
 }
 
@@ -3664,6 +3721,7 @@ function statusCard(p) {
 // 게임 끝 : 🏆 시상식 → 📜 인생 보고서
 function endGame() {
   busy = true;
+  playBgm("result");
   updateScreen();
   marketSettle(0);
 }
@@ -3746,6 +3804,7 @@ function showAwards() {
 
   html += '<br><button class="big-btn" onclick="showResult()">📜 인생 보고서 보기</button>';
   miniBox.classList.add("wide");
+  sfx("fanfare");
   showMini("🏆 시상식", html);
 }
 
