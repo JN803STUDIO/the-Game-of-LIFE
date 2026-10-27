@@ -8,10 +8,10 @@ const save = (p, s) => fs.writeFileSync(path.join(assets, p), s, "utf8");
 const EMOJI = 'font-family="Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif"';
 
 // 지도 크기 배율 (구간을 길게 하려고 지도 전체를 키움)
-const SCALE = 2.6;
+const SCALE = 2.2;
 const W = Math.round(2300 * SCALE), H = Math.round(1540 * SCALE);
 // 칸 사이 간격 (px). 칸이 많은 구간은 길이 구불구불해져서 이 간격을 맞춰요
-const SPACING = 95;
+const SPACING = 90;
 
 // ---------------- 지도 설계 ----------------
 const A = {
@@ -20,7 +20,7 @@ const A = {
   KINDER: { p: [980, 200], type: "life", area: "kinder", life: "kinder" },
   ELEM: { p: [1440, 200], type: "life", area: "elem", life: "elem" },
   F0: { p: [1680, 200], type: "fork", area: "elem", fork: "f0" },
-  MIDDLE: { p: [2050, 580], type: "life", area: "middle", life: "middle" },
+  MIDDLE: { p: [1990, 560], type: "life", area: "middle", life: "middle" },
   HIGH: { p: [1450, 600], type: "life", area: "high", life: "high" },
   F1: { p: [760, 600], type: "fork", area: "high", fork: "f1" },
   JOB: { p: [260, 960], type: "life", area: "young", life: "job" },
@@ -31,7 +31,7 @@ const A = {
   SJOIN: { p: [720, 1320], type: "pay", area: "senior" },
   GOAL: { p: [160, 1260], type: "goal", area: "senior" },
 };
-const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card";
+const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card", LK = "lucky", T = "treasure";
 
 // pattern 을 반복해서 n 칸짜리 목록 만들기
 function fill(n, pattern) {
@@ -39,30 +39,32 @@ function fill(n, pattern) {
   for (let i = 0; i < n; i++) out.push(pattern[i % pattern.length]);
   return out;
 }
-const CHILD = [N, G, E, B, N, G, C, B, E, G];        // 어린 시절 (월급 없음)
-const STUDENT = [N, E, G, LV, B, N, G, C, E, LV];    // 대학 / 취업 준비
+const CHILD = [N, G, E, B, LK, G, C, B, E, G];             // 어린 시절 (월급 없음)
+const STUDENT = [N, E, G, LV, B, N, LK, C, E, LV, P, G];   // 대학 / 취업 준비
 
-// 나이대마다 25칸 이상 (갈림길은 짧은 길 기준)
+// 칸 수 = 닌텐도 인생게임 턴 수에 맞춤 (한 턴 평균 5.5칸)
+//   어린 시절(아기~고등학교) 12턴 ≈ 66칸, 어른(진로 선택~골인) 37턴 ≈ 200칸
 // wave : 길이 휘어지는 방향 (1 또는 -1)
 const segs = [
-  { name: "아기", from: "START", to: "WALK", via: [], area: "baby", wave: 1, types: fill(24, CHILD) },
-  { name: "유아", from: "WALK", to: "KINDER", via: [[750, 150]], area: "toddler", wave: -1, types: fill(24, [G, N, B, E, C, N, G, E, B, N]) },
-  { name: "유치원", from: "KINDER", to: "ELEM", via: [[1210, 250]], area: "kinder", wave: 1, types: fill(24, [E, G, N, B, G, C, N, E, B, G]) },
-  { name: "초등학교", from: "ELEM", to: "F0", via: [], area: "elem", wave: -1, types: fill(6, [N, G, E]) },
-  { name: "초등학교 - 학원 길", from: "F0", to: "MIDDLE", via: [[1900, 130], [2180, 330]], area: "academy", wave: 1, types: fill(24, [E, N, B, G, N, C, G, N, E, B]) },
-  { name: "초등학교 - 운동장 길", from: "F0", to: "MIDDLE", via: [[1800, 420]], area: "play", wave: 1, types: fill(17, [G, N, E, G, B, N, C]) },
-  { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[2010, 720], [1720, 700]], area: "middle", wave: 1, types: fill(24, [N, G, E, B, C, G, N, E, B, G]) },
-  { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", wave: -1, types: [...fill(23, [N, B, E, G, N, C, G, B, E]), "L:exam"] },
-  { name: "대학교 길", from: "F1", to: "JOB", via: [[480, 480], [200, 620]], area: "college", wave: 1, types: ["L:college", ...fill(27, STUDENT)] },
-  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[500, 800]], area: "work", wave: -1, types: fill(25, STUDENT) },
-  { name: "성인 초반", from: "JOB", to: "F2", via: [[330, 1080], [650, 1010], [1000, 1010]], area: "young", wave: 1, types: fill(31, [P, WK, LV, G, E, B, N, WK, LV, P, C, G, E, B, N, LV]) },
-  { name: "성인 초반 - 연애 집중 길", from: "F2", to: "HOUSE", via: [[1680, 830]], area: "lovepath", wave: -1, types: fill(17, [LV, P, LV, G, LV, E, LV, B]) },
-  { name: "성인 초반 - 일 집중 길", from: "F2", to: "HOUSE", via: [[1680, 1080]], area: "workpath", wave: 1, types: fill(16, [WK, G, WK, P, WK, E, WK, B]) },
-  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(30, [P, LV, G, B, E, WK, N, C, G, P, B, E]) },
-  { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", wave: 1, types: [N, G, E, N] },
-  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(17, [G, N, E, G, LV, P]) },
+  { name: "아기", from: "START", to: "WALK", via: [], area: "baby", wave: 1, types: fill(8, CHILD) },
+  { name: "유아", from: "WALK", to: "KINDER", via: [[750, 150]], area: "toddler", wave: -1, types: [G, N, B, E, C, N, G, LK, B] },
+  { name: "유치원", from: "KINDER", to: "ELEM", via: [[1210, 250]], area: "kinder", wave: 1, types: [E, G, N, B, G, C, N, LK, G] },
+  { name: "초등학교", from: "ELEM", to: "F0", via: [], area: "elem", wave: -1, types: [N, G, E] },
+  { name: "초등학교 - 학원 길", from: "F0", to: "MIDDLE", via: [[1980, 240]], area: "academy", wave: 1, types: [E, N, B, G, LK, C, G, E, N] },
+  { name: "초등학교 - 운동장 길", from: "F0", to: "MIDDLE", via: [[1740, 470]], area: "play", wave: 1, types: [G, N, E, G, B, LK, C, G] },
+  { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[2010, 720], [1720, 700]], area: "middle", wave: 1, types: [N, G, E, B, C, G, LK, E, B, G, T] },
+  { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", wave: -1, types: [N, B, E, G, LK, C, G, B, T, E, "L:exam"] },
+  { name: "대학교 길", from: "F1", to: "JOB", via: [[700, 520], [480, 480], [200, 620]], area: "college", wave: 1, types: ["L:college", ...fill(27, STUDENT)] },
+  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[700, 690], [500, 800]], area: "work", wave: -1, types: fill(24, [P, E, G, LV, B, N, LK, C, E, WK, P, G]) },
+  { name: "성인 초반", from: "JOB", to: "F2", via: [[330, 1080], [650, 1010], [1000, 1010]], area: "young", wave: 1,
+    types: [...fill(19, [P, WK, LV, G, E, B, N, LK, P, LV, C, G, E, B, T, LV]), "L:marry", ...fill(18, [G, LV, E, P, WK, B, LK, N, LV, C, P, E, T, G])] },
+  { name: "애정·가정 집중 길", from: "F2", to: "HOUSE", via: [[1480, 870], [1680, 830], [1900, 880]], area: "lovepath", wave: -1, types: fill(18, [LV, G, LV, E, LV, LK, LV, B, P]) },
+  { name: "출세 집중 길", from: "F2", to: "HOUSE", via: [[1480, 1010], [1680, 1080], [1900, 1040]], area: "workpath", wave: 1, types: fill(17, [WK, G, WK, P, WK, E, WK, LK, B, P]) },
+  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(44, [P, LV, G, B, E, WK, N, LK, C, G, P, B, E, T]) },
+  { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", wave: 1, types: [N, G, E, P, LK, B] },
+  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(20, [G, N, E, G, LV, P, LK, T]) },
   { name: "황혼기 - 한방역전섬", from: "F3", to: "SJOIN", via: [[970, 1180]], area: "gamble", wave: -1, types: fill(14, [E]) },
-  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(16, [N, G, E, B, P, LV]) },
+  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(20, [N, G, E, B, P, LV, LK, T]) },
 ];
 
 // 모든 좌표를 SCALE 배로 키우기
@@ -95,17 +97,29 @@ function wiggle(pts, n, sign) {
   const L = polyLen(pts);
   if (target <= L * 1.05) return pts;
 
-  const base = resample(pts, 8);
-  const halfWaves = Math.max(1, Math.round(L / 220));
+  // 꺾이는 곳을 둥글게 (앞뒤 점 평균 내기)
+  let base = resample(pts, 8);
+  for (let pass = 0; pass < 4; pass++) {
+    base = base.map((q, i) => {
+      if (i < 12 || i > base.length - 13) return q;
+      let sx = 0, sy = 0;
+      for (let k = -12; k <= 12; k++) { sx += base[i + k][0]; sy += base[i + k][1]; }
+      return [sx / 25, sy / 25];
+    });
+  }
+  const halfWaves = Math.max(1, Math.round(L / 300));
   const K = 15; // 방향을 부드럽게 계산하려고 앞뒤 15개 점 사용
   const normals = base.map((q, i) => {
     const a = base[Math.max(0, i - K)], b = base[Math.min(base.length - 1, i + K)];
     const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
     return [-dy / len, dx / len];
   });
+  // 시작 / 끝 부분(갈림길 근처)은 덜 휘게 해서 다른 길과 겹치지 않게
+  const RAMP = 350;
   const make = (amp) => base.map((q, i) => {
     const s = i / (base.length - 1);
-    const off = amp * sign * Math.sin(Math.PI * halfWaves * s);
+    const env = Math.min(1, (s * L) / RAMP, ((1 - s) * L) / RAMP);
+    const off = amp * env * sign * Math.sin(Math.PI * halfWaves * s);
     return [q[0] + normals[i][0] * off, q[1] + normals[i][1] * off];
   });
 
@@ -236,8 +250,8 @@ const areaStyle = {
   college: { label: "🎓 대학교", deco: ["🏛️", "📚", "🌳"] },
   work: { label: "💼 바로 취업", deco: ["🏭", "🌳"] },
   young: { label: "🏙️ 성인 초반", deco: ["🏢", "🏬", "🚕", "🏢"] },
-  lovepath: { label: "💕 연애 집중 길", deco: ["🌸", "💐", "🎡"] },
-  workpath: { label: "💼 일 집중 길", deco: ["🏢", "💻", "🏗️"] },
+  lovepath: { label: "💕 애정·가정 집중 길", deco: ["🌸", "💐", "🎡"] },
+  workpath: { label: "💼 출세 집중 길", deco: ["🏢", "💻", "🏗️"] },
   late: { label: "🏡 성인 후반", deco: ["🏡", "🌳", "🏠", "🌲"] },
   sea: { label: "🌊 평온한 바닷길", deco: ["🐚", "🦀", "⛵"] },
   gamble: { label: "🎰 한방역전섬", deco: ["🎰", "💎", "🎲"] },
@@ -316,6 +330,9 @@ const icons = {
   love: ["♥", "#ffdeeb", "#e64980", false],
   work: ["★", "#c5f6fa", "#1098ad", false],
   card: ["🎴", "#f3f0ff", "#845ef7", true],
+  lucky: ["⭐", "#fff3bf", "#f08c00", true],
+  treasure: ["💎", "#e3fafc", "#15aabf", true],
+  marry: ["💍", "#fff3bf", "#f59f00", true],
   fork: ["🪧", "#ffe8cc", "#f76707", true],
   start: ["👶", "#fff3bf", "#fab005", true],
   goal: ["🏁", "#fff9db", "#fcc419", true],
@@ -350,7 +367,7 @@ for (const k in icons) save(`tiles/${k}.svg`, icon(...icons[k]));
   save("ui/roulette.svg", s);
 }
 
-for (const old of ["plus", "minus", "invest", "baby", "walk", "marry"]) {
+for (const old of ["plus", "minus", "invest", "baby", "walk"]) {
   const f = path.join(assets, "tiles", old + ".svg");
   if (fs.existsSync(f)) fs.unlinkSync(f);
 }
