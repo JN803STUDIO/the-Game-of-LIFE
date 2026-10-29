@@ -1,0 +1,438 @@
+// 지도 데이터(map.js) + 지도 배경 + 칸 아이콘 생성기
+const fs = require("fs");
+const path = require("path");
+const game = process.argv[2];
+const assets = path.join(game, "assets");
+for (const d of ["characters", "tiles", "ui"]) fs.mkdirSync(path.join(assets, d), { recursive: true });
+const save = (p, s) => fs.writeFileSync(path.join(assets, p), s, "utf8");
+const EMOJI = 'font-family="Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif"';
+
+// 지도 크기 배율 (구간을 길게 하려고 지도 전체를 키움)
+const SCALE = 2.2;
+const W = Math.round(2300 * SCALE), H = Math.round(1540 * SCALE);
+// 칸 사이 간격 (px). 칸이 많은 구간은 길이 구불구불해져서 이 간격을 맞춰요
+const SPACING = 90;
+
+// ---------------- 지도 설계 ----------------
+const A = {
+  START: { p: [110, 200], type: "start", area: "baby" },
+  WALK: { p: [520, 200], type: "life", area: "toddler", life: "talent" },
+  KINDER: { p: [980, 200], type: "life", area: "kinder", life: "kinder" },
+  ELEM: { p: [1440, 200], type: "life", area: "elem", life: "elem" },
+  F0: { p: [1680, 200], type: "fork", area: "elem", fork: "f0" },
+  MIDDLE: { p: [1990, 560], type: "life", area: "middle", life: "middle" },
+  HIGH: { p: [1450, 600], type: "life", area: "high", life: "high" },
+  F1: { p: [760, 600], type: "fork", area: "high", fork: "f1" },
+  JOB: { p: [260, 960], type: "life", area: "young", life: "job" },
+  F2: { p: [1380, 940], type: "fork", area: "young", fork: "f2" },
+  HOUSE: { p: [1980, 960], type: "life", area: "late", life: "house" },
+  RETIRE: { p: [1400, 1320], type: "life", area: "senior", life: "retire" },
+  F3: { p: [1220, 1320], type: "fork", area: "senior", fork: "f3" },
+  SJOIN: { p: [720, 1320], type: "pay", area: "senior" },
+  GOAL: { p: [160, 1260], type: "goal", area: "senior" },
+};
+const N = "normal", G = "good", B = "bad", E = "event", P = "pay", LV = "love", WK = "work", C = "card", LK = "lucky", T = "treasure", S = "shop";
+
+// pattern 을 반복해서 n 칸짜리 목록 만들기
+function fill(n, pattern) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(pattern[i % pattern.length]);
+  return out;
+}
+const CHILD = [N, G, E, B, LK, G, C, B, E, G];             // 어린 시절 (월급 없음)
+const STUDENT = [N, E, G, LV, B, S, LK, C, E, LV, P, G];   // 대학 / 취업 준비
+
+// 칸 수 = 닌텐도 인생게임 턴 수에 맞춤 (한 턴 평균 5.5칸)
+//   어린 시절(아기~고등학교) 12턴 ≈ 66칸, 어른(진로 선택~골인) 37턴 ≈ 200칸
+// wave : 길이 휘어지는 방향 (1 또는 -1)
+const segs = [
+  { name: "아기", from: "START", to: "WALK", via: [], area: "baby", wave: 1, types: fill(8, CHILD) },
+  { name: "유아", from: "WALK", to: "KINDER", via: [[750, 150]], area: "toddler", wave: -1, types: [G, N, B, E, C, N, G, LK, B] },
+  { name: "유치원", from: "KINDER", to: "ELEM", via: [[1210, 250]], area: "kinder", wave: 1, types: [E, G, N, B, G, C, N, LK, G] },
+  { name: "초등학교", from: "ELEM", to: "F0", via: [], area: "elem", wave: -1, types: [N, G, E] },
+  { name: "초등학교 - 학원 길", from: "F0", to: "MIDDLE", via: [[1980, 240]], area: "academy", wave: 1, types: [E, N, B, G, LK, C, G, E, N] },
+  { name: "초등학교 - 운동장 길", from: "F0", to: "MIDDLE", via: [[1740, 470]], area: "play", wave: 1, types: [G, N, E, G, B, LK, C, G] },
+  { name: "중학교", from: "MIDDLE", to: "HIGH", via: [[2010, 720], [1720, 700]], area: "middle", wave: 1, types: [N, G, E, B, C, G, LK, E, B, G, T] },
+  { name: "고등학교", from: "HIGH", to: "F1", via: [[1100, 660]], area: "high", wave: -1, types: [N, B, E, G, LK, C, G, B, T, E, "L:exam"] },
+  { name: "대학교 길", from: "F1", to: "JOB", via: [[700, 520], [480, 480], [200, 620]], area: "college", wave: 1, types: ["L:college", ...fill(27, STUDENT)] },
+  { name: "바로 취업 길", from: "F1", to: "JOB", via: [[700, 690], [500, 800]], area: "work", wave: -1, types: fill(24, [P, E, G, LV, B, S, LK, C, E, WK, P, G]) },
+  { name: "성인 초반", from: "JOB", to: "F2", via: [[330, 1080], [650, 1010], [1000, 1010]], area: "young", wave: 1,
+    types: [...fill(19, [P, WK, LV, G, E, B, S, LK, P, LV, C, G, E, B, T, LV]), "L:marry", ...fill(18, [G, LV, E, P, WK, B, LK, S, LV, C, P, E, T, G])] },
+  { name: "애정·가정 집중 길", from: "F2", to: "HOUSE", via: [[1480, 870], [1680, 830], [1900, 880]], area: "lovepath", wave: -1, types: fill(18, [LV, G, LV, E, LV, LK, LV, S, P]) },
+  { name: "출세 집중 길", from: "F2", to: "HOUSE", via: [[1480, 1010], [1680, 1080], [1900, 1040]], area: "workpath", wave: 1, types: fill(17, [WK, G, WK, P, WK, S, WK, LK, B, P]) },
+  { name: "성인 후반", from: "HOUSE", to: "RETIRE", via: [[2180, 1120], [2000, 1340]], area: "late", wave: 1, types: fill(44, [P, LV, G, B, E, WK, S, LK, C, G, P, B, E, T]) },
+  { name: "황혼기", from: "RETIRE", to: "F3", via: [], area: "senior", wave: 1, types: [N, G, E, P, LK, B] },
+  { name: "황혼기 - 평온한 바닷길", from: "F3", to: "SJOIN", via: [[1100, 1470], [860, 1470]], area: "sea", wave: 1, types: fill(20, [G, S, E, G, LV, P, LK, T]) },
+  { name: "황혼기 - 한방역전섬", from: "F3", to: "SJOIN", via: [[970, 1180]], area: "gamble", wave: -1, types: fill(14, [E]) },
+  { name: "노년", from: "SJOIN", to: "GOAL", via: [[450, 1400]], area: "senior", wave: 1, types: fill(20, [N, G, E, B, P, S, LK, T]) },
+];
+
+// 모든 좌표를 SCALE 배로 키우기
+for (const key in A) {
+  A[key].p = [A[key].p[0] * SCALE, A[key].p[1] * SCALE];
+}
+for (const s of segs) {
+  s.via = s.via.map((v) => [v[0] * SCALE, v[1] * SCALE]);
+}
+
+// 폴리라인 길이
+function polyLen(pts) {
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+  return total;
+}
+
+// 폴리라인을 step 간격의 촘촘한 점들로 바꾸기
+function resample(pts, step) {
+  const total = polyLen(pts);
+  const count = Math.max(2, Math.round(total / step));
+  const out = [];
+  for (let i = 0; i <= count; i++) out.push(pointAt(pts, i / count));
+  return out;
+}
+
+// 칸 n개가 SPACING 간격으로 들어가도록, 모자란 길이만큼 사인파로 구불구불하게
+function wiggle(pts, n, sign) {
+  const target = (n + 1) * SPACING;
+  const L = polyLen(pts);
+  if (target <= L * 1.05) return pts;
+
+  // 꺾이는 곳을 둥글게 (앞뒤 점 평균 내기)
+  let base = resample(pts, 8);
+  for (let pass = 0; pass < 4; pass++) {
+    base = base.map((q, i) => {
+      if (i < 12 || i > base.length - 13) return q;
+      let sx = 0, sy = 0;
+      for (let k = -12; k <= 12; k++) { sx += base[i + k][0]; sy += base[i + k][1]; }
+      return [sx / 25, sy / 25];
+    });
+  }
+  const halfWaves = Math.max(1, Math.round(L / 300));
+  const K = 15; // 방향을 부드럽게 계산하려고 앞뒤 15개 점 사용
+  const normals = base.map((q, i) => {
+    const a = base[Math.max(0, i - K)], b = base[Math.min(base.length - 1, i + K)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    return [-dy / len, dx / len];
+  });
+  // 시작 / 끝 부분(갈림길 근처)은 덜 휘게 해서 다른 길과 겹치지 않게
+  const RAMP = 350;
+  const make = (amp) => base.map((q, i) => {
+    const s = i / (base.length - 1);
+    const env = Math.min(1, (s * L) / RAMP, ((1 - s) * L) / RAMP);
+    const off = amp * env * sign * Math.sin(Math.PI * halfWaves * s);
+    return [q[0] + normals[i][0] * off, q[1] + normals[i][1] * off];
+  });
+
+  // 길이가 target 이 되는 진폭 찾기 (이분 탐색)
+  let lo = 0, hi = 1500;
+  for (let it = 0; it < 40; it++) {
+    const mid = (lo + hi) / 2;
+    if (polyLen(make(mid)) < target) lo = mid; else hi = mid;
+  }
+  return make(lo);
+}
+
+// 폴리라인 위 t(0~1) 지점
+function pointAt(pts, t) {
+  const lens = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+    lens.push(l); total += l;
+  }
+  let d = t * total;
+  for (let i = 0; i < lens.length; i++) {
+    if (d <= lens[i] || i === lens.length - 1) {
+      const r = lens[i] === 0 ? 0 : d / lens[i];
+      return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * r, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * r];
+    }
+    d -= lens[i];
+  }
+}
+
+// 번호 매기기 순서
+const order = ["START", 0, "WALK", 1, "KINDER", 2, "ELEM", 3, "F0", 4, 5, "MIDDLE", 6, "HIGH", 7, "F1", 8, 9,
+  "JOB", 10, "F2", 11, 12, "HOUSE", 13, "RETIRE", 14, "F3", 15, 16, "SJOIN", 17, "GOAL"];
+const tiles = [];
+const anchorId = {};
+const segIds = {};
+const comments = {};
+for (const o of order) {
+  if (typeof o === "string") {
+    anchorId[o] = tiles.length;
+    const a = A[o];
+    const t = { id: tiles.length, x: a.p[0], y: a.p[1], type: a.type, area: a.area, next: [] };
+    if (a.life) t.life = a.life;
+    if (a.fork) t.fork = a.fork;
+    tiles.push(t);
+  } else {
+    const s = segs[o];
+    const pts = wiggle([A[s.from].p, ...s.via, A[s.to].p], s.types.length, s.wave);
+    segIds[o] = [];
+    comments[tiles.length] = s.name;
+    s.types.forEach((ty, i) => {
+      const [x, y] = pointAt(pts, (i + 1) / (s.types.length + 1));
+      const t = { id: tiles.length, x: Math.round(x), y: Math.round(y), type: ty, area: s.area, next: [] };
+      if (ty.startsWith("L:")) { t.type = "life"; t.life = ty.slice(2); }
+      segIds[o].push(t.id);
+      tiles.push(t);
+    });
+  }
+}
+// 연결
+segs.forEach((s, i) => {
+  const ids = segIds[i];
+  tiles[anchorId[s.from]].next.push(ids[0]);
+  for (let k = 0; k < ids.length - 1; k++) tiles[ids[k]].next.push(ids[k + 1]);
+  tiles[ids[ids.length - 1]].next.push(anchorId[s.to]);
+});
+
+// ---------------- map.js 출력 ----------------
+let js = `// =====================================================
+// 지도 데이터 (자동 생성 + 직접 수정 가능)
+//   x, y  : 칸의 위치 (지도 왼쪽 위가 0, 0)
+//   type  : 칸 종류 (good 좋은 일 / bad 나쁜 일 / normal 보통 / event 선택 이벤트
+//           pay 월급날 / fork 갈림길 / life 인생 이벤트(무조건 멈춤) / start / goal)
+//   area  : 지역 (어떤 지역 이야기가 나올지 정함 → events.js)
+//   next  : 다음 칸 번호 (2개면 갈림길)
+// =====================================================
+const MAP_WIDTH = ${W};
+const MAP_HEIGHT = ${H};
+
+const tiles = [
+`;
+for (const t of tiles) {
+  if (comments[t.id]) js += `\n  // ----- ${comments[t.id]} -----\n`;
+  let extra = "";
+  if (t.life) extra += `, life: "${t.life}"`;
+  if (t.fork) extra += `, fork: "${t.fork}"`;
+  js += `  { id: ${t.id}, x: ${t.x}, y: ${t.y}, type: "${t.type}", area: "${t.area}"${extra}, next: [${t.next.join(", ")}] },\n`;
+}
+js += `];\n`;
+fs.writeFileSync(path.join(game, "map.js"), js, "utf8");
+
+// ---------------- 지도 배경 ----------------
+const roads = [];
+for (const t of tiles) for (const n of t.next) roads.push([t.x, t.y, tiles[n].x, tiles[n].y]);
+function distSeg(px, py, [x1, y1, x2, y2]) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+const placed = [];
+function free(x, y, r) {
+  if (x < 40 || y < 40 || x > W - 40 || y > H - 40) return false;
+  for (const t of tiles) if (Math.hypot(x - t.x, y - t.y) < r + 40) return false;
+  for (const rd of roads) if (distSeg(x, y, rd) < r + 22) return false;
+  for (const p of placed) if (Math.hypot(x - p[0], y - p[1]) < r + p[2]) return false;
+  return true;
+}
+let seed = 11;
+const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+
+// 바닷길 · 한방역전섬은 물 위 (모래 테두리)
+let water = "", sand = "";
+for (const t of tiles) {
+  if (t.area === "sea" || t.area === "gamble") {
+    water += `<circle cx="${t.x}" cy="${t.y}" r="190" fill="#4dabf7"/>`;
+    sand += `<circle cx="${t.x}" cy="${t.y}" r="62" fill="#ffe8a3"/>`;
+  }
+}
+// 길 아래 연한 잔디 띠
+let glow = "";
+for (const t of tiles) glow += `<circle cx="${t.x}" cy="${t.y}" r="80" fill="#b2f2bb" opacity="0.55"/>`;
+
+// 호수 (칸이 없는 빈 곳에)
+let lakes = "";
+for (let tries = 0, made = 0; tries < 4000 && made < 9; tries++) {
+  const x = rnd() * W, y = rnd() * H, r = 110 + rnd() * 120;
+  if (free(x, y, r + 30)) {
+    placed.push([x, y, r + 30]);
+    lakes += `<ellipse cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="${(r + 14).toFixed(0)}" ry="${(r * 0.7 + 14).toFixed(0)}" fill="#a5d8ff"/>
+<ellipse cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" rx="${r.toFixed(0)}" ry="${(r * 0.7).toFixed(0)}" fill="#4dabf7"/>`;
+    made++;
+  }
+}
+
+// 도시 도로 (회색 바둑판, 칸 근처는 피해서)
+let streets = "";
+const GRID = 330;
+function streetLine(points) {
+  if (points.length < 3) return;
+  const d = "M" + points.map((q) => q[0].toFixed(0) + " " + q[1].toFixed(0)).join(" L");
+  streets += `<path d="${d}" stroke="#868e96" stroke-width="30" fill="none" stroke-linecap="round"/>
+<path d="${d}" stroke="#fff" stroke-width="3" stroke-dasharray="14 14" fill="none" opacity="0.8"/>`;
+}
+function streetFree(x, y) {
+  if (x < 20 || y < 20 || x > W - 20 || y > H - 20) return false;
+  for (const t of tiles) if (Math.hypot(x - t.x, y - t.y) < 95) return false;
+  for (const rd of roads) if (distSeg(x, y, rd) < 70) return false;
+  for (const p of placed) if (Math.hypot(x - p[0], y - p[1]) < p[2]) return false;
+  return true;
+}
+for (let gy = GRID / 2; gy < H; gy += GRID) {
+  let run = [];
+  for (let x = 0; x <= W; x += 30) {
+    if (streetFree(x, gy)) run.push([x, gy]);
+    else { streetLine(run); run = []; }
+  }
+  streetLine(run);
+}
+for (let gx = GRID / 2; gx < W; gx += GRID) {
+  let run = [];
+  for (let y = 0; y <= H; y += 30) {
+    if (streetFree(gx, y)) run.push([gx, y]);
+    else { streetLine(run); run = []; }
+  }
+  streetLine(run);
+}
+// 도로 자리는 장식이 안 놓이게
+for (let gy = GRID / 2; gy < H; gy += GRID) for (let x = 0; x <= W; x += 40) placed.push([x, gy, 26]);
+for (let gx = GRID / 2; gx < W; gx += GRID) for (let y = 0; y <= H; y += 40) placed.push([gx, y, 26]);
+
+const areaStyle = {
+  baby: { label: "👶 아기", deco: ["🍼", "🧸", "🌷"] },
+  toddler: { label: "🧸 유아", deco: ["🧸", "🎈", "🌼"] },
+  kinder: { label: "🎒 유치원", deco: ["🎨", "🖍️", "🌳"] },
+  elem: { label: "🏫 초등학교", deco: ["🏫", "⚽", "🌳"] },
+  academy: { label: "✏️ 학원 길", deco: ["📚", "✏️", "🏢"] },
+  play: { label: "⚽ 운동장 길", deco: ["🛝", "⚽", "🌳"] },
+  middle: { label: "📘 중학교", deco: ["🏫", "🏀", "🌲"] },
+  high: { label: "📝 고등학교", deco: ["🏫", "📚", "🌳"] },
+  college: { label: "🎓 대학교", deco: ["🏛️", "📚", "🌳"] },
+  work: { label: "💼 바로 취업", deco: ["🏭", "🌳"] },
+  young: { label: "🏙️ 성인 초반", deco: ["🏢", "🏬", "🚕", "🏢"] },
+  lovepath: { label: "💕 애정·가정 집중 길", deco: ["🌸", "💐", "🎡"] },
+  workpath: { label: "💼 출세 집중 길", deco: ["🏢", "💻", "🏗️"] },
+  late: { label: "🏡 성인 후반", deco: ["🏡", "🌳", "🏠", "🌲"] },
+  sea: { label: "🌊 평온한 바닷길", deco: ["🐚", "🦀", "⛵"] },
+  gamble: { label: "🎰 한방역전섬", deco: ["🎰", "💎", "🎲"] },
+  senior: { label: "🏝️ 황혼기", deco: ["🌴", "⛱️", "🌺"] },
+};
+
+let labels = "", deco = "";
+for (const area in areaStyle) {
+  const at = tiles.filter((t) => t.area === area);
+  const cx = at.reduce((s, t) => s + t.x, 0) / at.length;
+  const cy = at.reduce((s, t) => s + t.y, 0) / at.length;
+  // 라벨
+  const text = areaStyle[area].label;
+  const w = text.length * 22 + 20;
+  let done = false;
+  for (let r = 50; r < 380 && !done; r += 10) {
+    for (let a = 0; a < 360 && !done; a += 20) {
+      const x = cx + r * Math.cos((a * Math.PI) / 180), y = cy + r * Math.sin((a * Math.PI) / 180);
+      let ok = true;
+      for (let dx = -w / 2; dx <= w / 2 && ok; dx += 15) ok = free(x + dx, y, 6);
+      if (ok) {
+        for (let dx = -w / 2; dx <= w / 2; dx += 15) placed.push([x + dx, y, 22]);
+        labels += `<g><rect x="${(x - w / 2).toFixed(0)}" y="${(y - 16).toFixed(0)}" width="${w}" height="40" rx="20" fill="rgba(0,0,0,0.25)"/>
+<rect x="${(x - w / 2).toFixed(0)}" y="${(y - 20).toFixed(0)}" width="${w}" height="40" rx="20" fill="#343a40" stroke="#fff" stroke-width="3"/>
+<text x="${x.toFixed(0)}" y="${(y + 8).toFixed(0)}" font-size="22" font-weight="700" text-anchor="middle" font-family="Malgun Gothic, sans-serif" fill="#ffe066">${text}</text></g>`;
+        done = true;
+      }
+    }
+  }
+  // 장식
+  let count = 0;
+  for (let tries = 0; tries < 2500 && count < 22; tries++) {
+    const t = at[Math.floor(rnd() * at.length)];
+    const a = rnd() * Math.PI * 2, r = 60 + rnd() * 100;
+    const x = t.x + r * Math.cos(a), y = t.y + r * Math.sin(a);
+    if (free(x, y, 22)) {
+      placed.push([x, y, 22]);
+      const e = areaStyle[area].deco[count % areaStyle[area].deco.length];
+      deco += `<text x="${x.toFixed(0)}" y="${(y + 14).toFixed(0)}" font-size="${(32 + rnd() * 10).toFixed(0)}" text-anchor="middle" ${EMOJI}>${e}</text>`;
+      count++;
+    }
+  }
+}
+// 빈 땅에 나무 · 집 · 건물
+const filler = ["🌳", "🌲", "🌳", "🏠", "🌳", "🏢", "🌲", "🏡", "🌳", "🏬"];
+for (let i = 0, made = 0; i < 6000 && made < 420; i++) {
+  const x = rnd() * W, y = rnd() * H;
+  if (free(x, y, 20)) {
+    placed.push([x, y, 20]);
+    deco += `<text x="${x.toFixed(0)}" y="${(y + 12).toFixed(0)}" font-size="${(26 + rnd() * 12).toFixed(0)}" text-anchor="middle" ${EMOJI}>${filler[made % filler.length]}</text>`;
+    made++;
+  }
+}
+save("ui/map-bg.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+<defs><linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8ce99a"/><stop offset="1" stop-color="#51cf66"/></linearGradient></defs>
+<rect width="${W}" height="${H}" fill="url(#grass)"/>
+${water}
+${lakes}
+${streets}
+${glow}
+${sand}
+${deco}
+${labels}
+</svg>`);
+
+// ---------------- 칸 아이콘 ----------------
+function icon(symbol, c1, c2, isEmoji) {
+  const font = isEmoji ? EMOJI : 'font-family="Arial Black, sans-serif" font-weight="900" fill="#fff" stroke="rgba(0,0,0,0.25)" stroke-width="2"';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs><radialGradient id="g" cx="0.3" cy="0.25" r="0.9"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></radialGradient></defs>
+  <rect x="7" y="12" width="86" height="84" rx="18" fill="rgba(0,0,0,0.25)"/>
+  <rect x="7" y="6" width="86" height="86" rx="18" fill="url(#g)" stroke="#fff" stroke-width="6"/>
+  <text x="50" y="${isEmoji ? 66 : 68}" font-size="${isEmoji ? 42 : 50}" text-anchor="middle" ${font}>${symbol}</text>
+</svg>`;
+}
+const icons = {
+  good: ["+", "#a5d8ff", "#1c7ed6", false],
+  bad: ["!", "#ffc9c9", "#e03131", false],
+  normal: ["•", "#fff3bf", "#f59f00", false],
+  event: ["?", "#e5dbff", "#7048e8", false],
+  pay: ["$", "#b2f2bb", "#2f9e44", false],
+  love: ["♥", "#ffdeeb", "#e64980", false],
+  work: ["★", "#c5f6fa", "#1098ad", false],
+  card: ["🎴", "#f3f0ff", "#845ef7", true],
+  lucky: ["⭐", "#fff3bf", "#f08c00", true],
+  treasure: ["💎", "#e3fafc", "#15aabf", true],
+  shop: ["🏪", "#ffe8cc", "#e8590c", true],
+  marry: ["💍", "#fff3bf", "#f59f00", true],
+  fork: ["🪧", "#ffe8cc", "#f76707", true],
+  start: ["👶", "#fff3bf", "#fab005", true],
+  goal: ["🏁", "#fff9db", "#fcc419", true],
+  talent: ["🌟", "#fff3bf", "#f59f00", true],
+  kinder: ["🎒", "#fff3bf", "#f59f00", true],
+  elem: ["🏫", "#fff3bf", "#f59f00", true],
+  middle: ["📘", "#fff3bf", "#f59f00", true],
+  high: ["📝", "#fff3bf", "#f59f00", true],
+  exam: ["✏️", "#fff3bf", "#f59f00", true],
+  college: ["🎓", "#fff3bf", "#f59f00", true],
+  job: ["💼", "#fff3bf", "#f59f00", true],
+  house: ["🏠", "#fff3bf", "#f59f00", true],
+  retire: ["🎉", "#fff3bf", "#f59f00", true],
+};
+for (const k in icons) save(`tiles/${k}.svg`, icon(...icons[k]));
+// 룰렛 (1~10)
+{
+  const colors = ["#ff6b6b", "#ffa94d", "#ffd43b", "#69db7c", "#38d9a9", "#4dabf7", "#748ffc", "#b197fc", "#f783ac", "#ff8787"];
+  const pt = (deg, r) => {
+    const a = (deg * Math.PI) / 180;
+    return [(150 + r * Math.sin(a)).toFixed(2), (150 - r * Math.cos(a)).toFixed(2)];
+  };
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <circle cx="150" cy="150" r="146" fill="#fff" stroke="#495057" stroke-width="6"/>`;
+  for (let k = 0; k < 10; k++) {
+    const c = k * 36;
+    const [x1, y1] = pt(c - 18, 136), [x2, y2] = pt(c + 18, 136), [tx, ty] = pt(c, 100);
+    s += `<path d="M150 150 L${x1} ${y1} A136 136 0 0 1 ${x2} ${y2} Z" fill="${colors[k]}" stroke="#fff" stroke-width="3"/>
+  <text x="${tx}" y="${ty}" font-size="34" font-weight="900" font-family="Arial Black, sans-serif" fill="#fff" stroke="#495057" stroke-width="2" text-anchor="middle" dominant-baseline="central" transform="rotate(${c} ${tx} ${ty})">${k + 1}</text>`;
+  }
+  s += `<circle cx="150" cy="150" r="26" fill="#fff" stroke="#495057" stroke-width="6"/><circle cx="150" cy="150" r="10" fill="#495057"/></svg>`;
+  save("ui/roulette.svg", s);
+}
+
+for (const old of ["plus", "minus", "invest", "baby", "walk"]) {
+  const f = path.join(assets, "tiles", old + ".svg");
+  if (fs.existsSync(f)) fs.unlinkSync(f);
+}
+const oldBg = path.join(assets, "ui", "board-bg.svg");
+if (fs.existsSync(oldBg)) fs.unlinkSync(oldBg);
+
+console.log("tiles:", tiles.length);
