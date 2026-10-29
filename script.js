@@ -1296,6 +1296,9 @@ function guardIndex(p) {
   return -1;
 }
 
+// 🛡️ 수호 카드 안내 : 다음에 뜨는 팝업 맨 위에 보여 줘요
+let guardNews = "";
+
 // 🦹 갈취(steal) / 🪤 함정 : 나 말고 가장 부자인 사람을 노려요
 //   상대에게 🛡️ 수호 카드가 있으면 막히고, 나한테 되돌아와요
 function attack(p, amount, steal) {
@@ -1317,6 +1320,20 @@ function attack(p, amount, steal) {
       target.money += amount;
     }
     addLog(target.name + " : 🛡️ 수호 카드로 반사!");
+
+    // 따로 눈에 띄게 안내 (팝업 안내 상자 + 효과음 + 머리 위 글자)
+    let what = "함정을";
+    let moneyLine = p.name + " " + moneyText(-amount);
+    if (steal) {
+      what = "갈취를";
+      moneyLine += " → " + target.name + " " + moneyText(amount);
+    }
+    guardNews += '<div class="guard-box">🛡️ <b>수호 카드 발동!</b><br>' +
+      target.name + "(이)가 " + p.name + "의 " + what + " 막고 되돌려 보냈어요!<br>" +
+      moneyLine + "<br><small>" + target.name + "의 수호 카드 1장을 썼어요</small></div>";
+    sfx("guard");
+    floatText(target, "🛡️ 수호 카드 발동!");
+    drawCards();
     return "🛡️ " + target.name + "의 수호 카드에 막혀서 되돌아왔어요! (" + moneyText(-amount) + ")";
   }
 
@@ -2928,7 +2945,9 @@ function showPopup(img, title, text, buttons) {
   if (cpuTurnNow && buttons.length > 1) {
     cpuNote = '<div class="cpu-think">🤖 ' + players[turn].name + '(이)가 고민 중...</div>';
   }
-  document.getElementById("popupText").innerHTML = text + cpuNote;
+  // 🛡️ 수호 카드가 쓰였으면 맨 위에 안내
+  document.getElementById("popupText").innerHTML = guardNews + text + cpuNote;
+  guardNews = "";
 
   popup.classList.remove("hidden");
   sfx("pop");

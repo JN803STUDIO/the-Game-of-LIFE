@@ -174,6 +174,12 @@ const sounds = {
     tone(988, 0.15, 0.25, "triangle", 0.13);
     tone(1175, 0.3, 0.4, "triangle", 0.13);
   },
+  // 수호 카드 발동 : 챙! (방패에 막히는 소리)
+  guard: function () {
+    sweep(200, 900, 0, 0.12, "square", 0.05);
+    tone(1568, 0.1, 0.4, "triangle", 0.12);
+    tone(2093, 0.15, 0.6, "sine", 0.1);
+  },
   // 카드 : 휙!
   card: function () {
     sweep(300, 1500, 0, 0.18, "sine", 0.12);
