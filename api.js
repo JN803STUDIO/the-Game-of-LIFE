@@ -1,11 +1,11 @@
 // =====================================================
 // 서버(FastAPI + MySQL) 연결 : 로그인 · 기록 저장 · 랭킹
-//
+
 // async / await 란?
-//   서버에 요청을 보내면 답이 오기까지 시간이 걸려요.
-//   await 를 붙이면 "답이 올 때까지 기다렸다가" 다음 줄을 실행해요.
-//   await 를 쓰는 함수 앞에는 async 를 붙여야 해요.
-//
+// 서버에 요청을 보내면 답이 오기까지 시간이 걸려요.
+// await 를 붙이면 "답이 올 때까지 기다렸다가" 다음 줄을 실행해요.
+// await 를 쓰는 함수 앞에는 async 를 붙여야 해요.
+
 // 서버가 꺼져 있으면(=index.html 을 그냥 열면) 게스트로만 플레이 가능
 // =====================================================
 
@@ -42,7 +42,9 @@ async function callApi(method, url, data) {
   const res = await fetch("/api" + url, options);
   const json = await res.json();
   if (!res.ok) {
-    throw new Error(json.detail || "서버 오류");
+    let message = "서버 오류";
+    if (json.detail) message = json.detail;
+    throw new Error(message);
   }
   return json;
 }

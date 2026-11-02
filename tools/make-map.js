@@ -43,7 +43,7 @@ const CHILD = [N, G, E, B, LK, G, C, B, E, G];             // 어린 시절 (월
 const STUDENT = [N, E, G, LV, B, S, LK, C, E, LV, P, G];   // 대학 / 취업 준비
 
 // 칸 수 = 닌텐도 인생게임 턴 수에 맞춤 (한 턴 평균 5.5칸)
-//   어린 시절(아기~고등학교) 12턴 ≈ 66칸, 어른(진로 선택~골인) 37턴 ≈ 200칸
+// 어린 시절(아기~고등학교) 12턴 ≈ 66칸, 어른(진로 선택~골인) 37턴 ≈ 200칸
 // wave : 길이 휘어지는 방향 (1 또는 -1)
 const segs = [
   { name: "아기", from: "START", to: "WALK", via: [], area: "baby", wave: 1, types: fill(8, CHILD) },
@@ -190,11 +190,11 @@ segs.forEach((s, i) => {
 // ---------------- map.js 출력 ----------------
 let js = `// =====================================================
 // 지도 데이터 (자동 생성 + 직접 수정 가능)
-//   x, y  : 칸의 위치 (지도 왼쪽 위가 0, 0)
-//   type  : 칸 종류 (good 좋은 일 / bad 나쁜 일 / normal 보통 / event 선택 이벤트
-//           pay 월급날 / fork 갈림길 / life 인생 이벤트(무조건 멈춤) / start / goal)
-//   area  : 지역 (어떤 지역 이야기가 나올지 정함 → events.js)
-//   next  : 다음 칸 번호 (2개면 갈림길)
+// x, y : 칸의 위치 (지도 왼쪽 위가 0, 0)
+// type : 칸 종류 (good 좋은 일 / bad 나쁜 일 / normal 보통 / event 선택 이벤트
+// pay 월급날 / fork 갈림길 / life 인생 이벤트(무조건 멈춤) / start / goal)
+// area : 지역 (어떤 지역 이야기가 나올지 정함 -> events.js)
+// next : 다음 칸 번호 (2개면 갈림길)
 // =====================================================
 const MAP_WIDTH = ${W};
 const MAP_HEIGHT = ${H};
