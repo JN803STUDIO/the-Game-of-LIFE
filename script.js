@@ -2232,7 +2232,7 @@ const minigames = [
   { name: "⏱️ 5초 맞추기", desc: "시작을 누르고 마음속으로 5초를 센 뒤 멈추세요! (가까울수록 높은 점수)", play: playStopwatch, stat: "sense", cpu: [40, 60, 70, 80, 90, 95] },
   { name: "🧮 암산 대결", desc: "덧셈 5문제! 맞힌 개수만큼 점수를 받아요.", play: playMath, stat: "int", cpu: [40, 60, 60, 80, 80, 100] },
   { name: "🃏 업다운", desc: "다음 숫자가 더 클까요, 작을까요? 5번 맞혀 보세요!", play: playUpDown, stat: "sense", cpu: [20, 40, 60, 60, 80, 100] },
-  { name: "🍎 순서 기억", desc: "과일 4개가 나오는 순서를 기억했다가 똑같이 누르세요!", play: playMemory, stat: "int", cpu: [25, 50, 50, 75, 75, 100] },
+  { name: "🍎 순서 기억", desc: "과일 4개가 딱 1초 나와요! 순서를 기억했다가 똑같이 누르세요!", play: playMemory, stat: "int", cpu: [25, 50, 50, 75, 75, 100] },
   { name: "✊ 가위바위보", desc: "컴퓨터와 가위바위보 3판! 이기면 30점, 비기면 10점", play: playRps, stat: "str", cpu: [0, 10, 30, 40, 60, 90] },
   { name: "🔢 숫자 빨리 누르기", desc: "1부터 9까지 순서대로 최대한 빨리 누르세요!", play: playNumbers, stat: "str", cpu: [40, 55, 65, 75, 85] }
 ];
@@ -2498,7 +2498,7 @@ function playMemory() {
     mini.answer.push(pick(fruits));
   }
   showMini("🍎 순서 기억", '잘 기억하세요!<div class="big-num">' + mini.answer.join(" ") + '</div>');
-  setTimeout(memoryInput, 2500);
+  setTimeout(memoryInput, 1000);   // 1초만 보여 줌
 }
 
 function memoryInput() {
