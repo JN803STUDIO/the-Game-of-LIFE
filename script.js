@@ -2261,17 +2261,17 @@ function continueGame() {
 
 
 // ----- 미니게임 -----
-// stat : 아이 때 받는 능력치, cpu : 컴퓨터 점수 후보
+// stat : 아이 때 받는 능력치, cpu : 컴퓨터가 게임하는 함수 (점수를 돌려줌)
 const minigames = [
-  { name: "🎯 타이밍 대결", desc: "왔다 갔다 하는 막대를 초록색 가운데에서 멈추세요!", play: playTiming, stat: "sense", cpu: [50, 60, 70, 80, 90] },
-  { name: "🍀 행운의 상자", desc: "상자 5개 중 하나를 고르세요! (0 ~ 100점)", play: playBox, stat: "sense", cpu: [0, 25, 50, 75, 100] },
-  { name: "🎡 룰렛 대결", desc: "숫자 룰렛을 돌려서 가장 큰 숫자가 나온 사람이 1등!", play: playSpin, stat: "int", cpu: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-  { name: "⏱️ 5초 맞추기", desc: "시작을 누르고 마음속으로 5초를 센 뒤 멈추세요! (가까울수록 높은 점수)", play: playStopwatch, stat: "sense", cpu: [40, 60, 70, 80, 90, 95] },
-  { name: "🧮 암산 대결", desc: "덧셈 5문제! 맞힌 개수만큼 점수를 받아요.", play: playMath, stat: "int", cpu: [40, 60, 60, 80, 80, 100] },
-  { name: "🃏 업다운", desc: "다음 숫자가 더 클까요, 작을까요? 5번 맞혀 보세요!", play: playUpDown, stat: "sense", cpu: [20, 40, 60, 60, 80, 100] },
-  { name: "🍎 순서 기억", desc: "과일 4개가 딱 1초 나와요! 순서를 기억했다가 똑같이 누르세요!", play: playMemory, stat: "int", cpu: [25, 50, 50, 75, 75, 100] },
-  { name: "✊ 가위바위보", desc: "컴퓨터와 가위바위보 3판! 이기면 30점, 비기면 10점", play: playRps, stat: "str", cpu: [0, 10, 30, 40, 60, 90] },
-  { name: "🔢 숫자 빨리 누르기", desc: "1부터 9까지 순서대로 최대한 빨리 누르세요!", play: playNumbers, stat: "str", cpu: [40, 55, 65, 75, 85] }
+  { name: "🎯 타이밍 대결", desc: "왔다 갔다 하는 막대를 초록색 가운데에서 멈추세요!", play: playTiming, stat: "sense", cpu: cpuTiming },
+  { name: "🍀 행운의 상자", desc: "상자 5개 중 하나를 고르세요! (0 ~ 100점)", play: playBox, stat: "sense", cpu: cpuBox },
+  { name: "🎡 룰렛 대결", desc: "숫자 룰렛을 돌려서 가장 큰 숫자가 나온 사람이 1등!", play: playSpin, stat: "int", cpu: cpuSpin },
+  { name: "⏱️ 5초 맞추기", desc: "시작을 누르고 마음속으로 5초를 센 뒤 멈추세요! (가까울수록 높은 점수)", play: playStopwatch, stat: "sense", cpu: cpuStopwatch },
+  { name: "🧮 암산 대결", desc: "덧셈 5문제! 맞힌 개수만큼 점수를 받아요.", play: playMath, stat: "int", cpu: cpuMath },
+  { name: "🃏 업다운", desc: "다음 숫자가 더 클까요, 작을까요? 5번 맞혀 보세요!", play: playUpDown, stat: "sense", cpu: cpuUpDown },
+  { name: "🍎 순서 기억", desc: "과일 4개가 딱 1초 나와요! 순서를 기억했다가 똑같이 누르세요!", play: playMemory, stat: "int", cpu: cpuMemory },
+  { name: "✊ 가위바위보", desc: "컴퓨터와 가위바위보 3판! 이기면 30점, 비기면 10점", play: playRps, stat: "str", cpu: cpuRps },
+  { name: "🔢 숫자 빨리 누르기", desc: "1부터 9까지 순서대로 최대한 빨리 누르세요!", play: playNumbers, stat: "str", cpu: cpuNumbers }
 ];
 
 function showMini(title, html) {
@@ -2330,7 +2330,7 @@ function miniNextPlayer() {
   }
   const p = players[mini.index];
   if (p.cpu) {
-    miniDone(p, pick(mini.game.cpu));
+    miniDone(p, mini.game.cpu());
     return;
   }
   showMini(mini.game.name, '<img src="' + p.img + '" width="80"><br><b style="color:' + p.color + '">' + p.name + '</b>의 차례!' +
@@ -2411,7 +2411,7 @@ function timingMove() {
 
 function timingStop() {
   clearInterval(mini.timer);
-  miniDone(miniPlayer(), Math.max(0, Math.round(100 - Math.abs(mini.pos - 50) * 2)));
+  miniDone(miniPlayer(), timingScore(mini.pos));
 }
 
 // 2. 행운의 상자
@@ -2455,7 +2455,7 @@ function stopwatchClick() {
   btn.disabled = true;
   const sec = (Date.now() - mini.start) / 1000;
   document.getElementById("watch").textContent = sec.toFixed(2) + "초";
-  setTimeout(function () { miniDone(miniPlayer(), Math.max(0, Math.round(100 - Math.abs(sec - 5) * 50))); }, 1200);
+  setTimeout(function () { miniDone(miniPlayer(), stopwatchScore(sec)); }, 1200);
 }
 
 function stopwatchShow() {
@@ -2511,10 +2511,7 @@ function upDownQuestion(text) {
 }
 
 function upDownGuess(up) {
-  let next = randomInt(1, 9);
-  while (next == mini.num) {
-    next = randomInt(1, 9);   // 같은 숫자는 다시 뽑기
-  }
+  const next = nextNumber(mini.num);
   let text = "❌ 틀렸어요! ";
   if ((next > mini.num) == up) {
     mini.correct++;
@@ -2581,14 +2578,11 @@ function rpsQuestion(text) {
 
 function rpsPlay(me) {
   const com = randomInt(0, 2);
+  const score = rpsScore(me, com);
   let result = "😢 졌어요";
-  if (me == com) {
-    result = "😐 비겼어요 +10";
-    mini.correct += 10;
-  } else if (me == (com + 1) % 3) {
-    result = "😆 이겼어요 +30";
-    mini.correct += 30;
-  }
+  if (score == 10) result = "😐 비겼어요 +10";
+  if (score == 30) result = "😆 이겼어요 +30";
+  mini.correct += score;
   mini.count++;
   rpsQuestion('<div class="big-num">' + hands[me] + " vs " + hands[com] + "</div>" + result);
 }
@@ -2616,7 +2610,94 @@ function numberPick(n) {
   mini.next++;
   if (mini.next <= 9) return;
   const sec = (Date.now() - mini.start) / 1000 + mini.penalty;
-  miniDone(miniPlayer(), Math.max(0, Math.min(100, Math.round(100 - (sec - 3) * 10))));
+  miniDone(miniPlayer(), numbersScore(sec));
+}
+
+
+// ----- 미니게임 점수 계산 (사람, 컴퓨터 같이 씀) -----
+function timingScore(pos) {
+  return Math.max(0, Math.round(100 - Math.abs(pos - 50) * 2));
+}
+
+function stopwatchScore(sec) {
+  return Math.max(0, Math.round(100 - Math.abs(sec - 5) * 50));
+}
+
+function numbersScore(sec) {
+  return Math.max(0, Math.min(100, Math.round(100 - (sec - 3) * 10)));
+}
+
+// 가위바위보 한 판 점수 (이기면 30, 비기면 10, 지면 0)
+function rpsScore(me, com) {
+  if (me == com) return 10;
+  if (me == (com + 1) % 3) return 30;
+  return 0;
+}
+
+// 업다운 다음 숫자 (지금 숫자와 같은 건 다시 뽑기)
+function nextNumber(now) {
+  let next = randomInt(1, 9);
+  while (next == now) {
+    next = randomInt(1, 9);
+  }
+  return next;
+}
+
+// 컴퓨터도 사람과 같은 규칙으로 게임을 함 (실력만 랜덤)
+function cpuTiming() {
+  return timingScore(50 + 2 * randomInt(-12, 12));   // 막대는 2씩 움직임
+}
+
+function cpuBox() {
+  return pick([0, 25, 50, 75, 100]);
+}
+
+function cpuSpin() {
+  return randomInt(1, 10);
+}
+
+function cpuStopwatch() {
+  return stopwatchScore(5 + randomInt(-70, 70) / 100);
+}
+
+function cpuMath() {
+  let score = 0;
+  for (let i = 0; i < 5; i++) {
+    if (Math.random() < 0.8) score += 20;   // 한 문제 맞힐 확률 80%
+  }
+  return score;
+}
+
+function cpuUpDown() {
+  let score = 0;
+  let now = randomInt(1, 9);
+  for (let i = 0; i < 5; i++) {
+    const up = now < 5 || (now == 5 && Math.random() < 0.5);   // 작은 숫자면 "더 크다"
+    const next = nextNumber(now);
+    if ((next > now) == up) score += 20;
+    now = next;
+  }
+  return score;
+}
+
+function cpuMemory() {
+  let score = 0;
+  for (let i = 0; i < 4; i++) {
+    if (Math.random() < 0.6) score += 25;   // 하나 기억할 확률 60%
+  }
+  return score;
+}
+
+function cpuRps() {
+  let score = 0;
+  for (let i = 0; i < 3; i++) {
+    score += rpsScore(randomInt(0, 2), randomInt(0, 2));
+  }
+  return score;
+}
+
+function cpuNumbers() {
+  return numbersScore(randomInt(40, 90) / 10 + randomInt(0, 1));   // 4~9초 + 가끔 틀려서 1초
 }
 
 
