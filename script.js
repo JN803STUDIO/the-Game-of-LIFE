@@ -297,11 +297,13 @@ function pickCharacter(slot, c) {
 }
 
 function drawSetup() {
+  // 다시 그리면 키보드로 고른 버튼이 사라지니까 id 를 기억해 뒀다가 다시 고름
+  const focusId = document.activeElement.id;
   let modeHtml = "";
   for (let k = 0; k < modes.length; k++) {
     let cls = "mode-btn";
     if (k == setupMode) cls += " selected";
-    modeHtml += '<button class="' + cls + '" onclick="setMode(' + k + ')">' + modes[k].name + '<small>약 ' + modes[k].turns + '턴</small></button>';
+    modeHtml += '<button class="' + cls + '" id="mode' + k + '" onclick="setMode(' + k + ')">' + modes[k].name + '<small>약 ' + modes[k].turns + '턴</small></button>';
   }
   document.getElementById("modeBox").innerHTML = modeHtml + '<p class="mode-desc">' + modes[setupMode].desc + '</p>';
 
@@ -316,9 +318,9 @@ function drawSetup() {
   if (botCount >= botMax) plusOff = " disabled";
   document.getElementById("botBox").innerHTML =
     '<span class="setup-label">🤖 컴퓨터</span>' +
-    '<button class="bot-btn" onclick="changeBot(-1)"' + minusOff + '>−</button>' +
+    '<button class="bot-btn" id="botMinus" onclick="changeBot(-1)"' + minusOff + '>−</button>' +
     '<span class="bot-count">' + botCount + '명</span>' +
-    '<button class="bot-btn" onclick="changeBot(1)"' + plusOff + '>+</button>' +
+    '<button class="bot-btn" id="botPlus" onclick="changeBot(1)"' + plusOff + '>+</button>' +
     '<span class="bot-max">(최대 ' + botMax + '명)</span>';
 
   setupCount = humanCount + botCount;
@@ -332,17 +334,18 @@ function drawSetup() {
     let genderText = "♂ 남자";
     if (setupGender[i] == "F") genderText = "♀ 여자";
     html += '<img class="slot-big" src="' + myChar.img + '">' +
-      '<button class="gender-btn ' + setupGender[i] + '" onclick="toggleGender(' + i + ')">' + genderText + '</button>' +
+      '<button class="gender-btn ' + setupGender[i] + '" id="gender' + i + '" onclick="toggleGender(' + i + ')">' + genderText + '</button>' +
       '<input type="text" id="name' + i + '" maxlength="6" placeholder="' + myChar.name + '" value="' + setupNames[i] + '" oninput="setName(' + i + ')">' +
       '<div class="char-list">';
     for (let c = 0; c < characters.length; c++) {
       let cls = "";
       if (setupChars[i] == c) cls = "selected";
-      html += '<img class="' + cls + '" src="' + characters[c].img + '" title="' + characters[c].name + '" onclick="pickCharacter(' + i + ', ' + c + ')">';
+      html += '<button class="' + cls + '" id="char' + i + "_" + c + '" title="' + characters[c].name + '" onclick="pickCharacter(' + i + ', ' + c + ')"><img src="' + characters[c].img + '"></button>';
     }
     html += '</div></div>';
   }
   document.getElementById("slots").innerHTML = html;
+  if (focusId != "" && document.getElementById(focusId) != null) document.getElementById(focusId).focus();
 }
 
 function startGame() {
@@ -2824,20 +2827,37 @@ function keyButtons() {
   else if (isOpen(popup)) box = document.getElementById("popupButtons");
   else if (isOpen(miniBox)) box = miniBox;
   else if (isOpen(menuPanel)) box = menuPanel;
-  else if (isOpen(document.getElementById("gameScreen"))) box = document.getElementById("menu");
+  else if (isOpen(document.getElementById("gameScreen"))) box = document.getElementById("mapArea");
   else box = document.querySelector(".screen:not(.hidden)");
 
   const list = [];
   if (box == null) return list;
-  for (const btn of box.querySelectorAll("button")) {
-    if (!btn.disabled) list.push(btn);
+  let all = Array.from(box.querySelectorAll("button, input"));
+  // 창이 없을 때는 오른쪽 아래 소리 버튼도
+  if (box == document.getElementById("mapArea") || box.classList.contains("screen")) {
+    all = all.concat(Array.from(document.querySelectorAll("#soundBox button")));
+  }
+  for (const btn of all) {
+    // 누를 수 있고 화면에 보이는 버튼만 (숨겨진 창의 버튼 빼기)
+    if (!btn.disabled && btn.getClientRects().length > 0) list.push(btn);
   }
   return list;
 }
 
 // 위(-1) / 아래(1) 화살표 : 바로 위나 아래 줄에서 가로로 가장 가까운 버튼으로
 function moveFocus(buttons, now, dir) {
-  const from = buttons[now].getBoundingClientRect();
+  // 오른쪽 아래 소리 버튼은 다른 버튼이 없을 때만
+  const normal = [];
+  for (const btn of buttons) {
+    if (btn.parentElement.id != "soundBox") normal.push(btn);
+  }
+  let best = closestRow(normal, buttons[now], dir);
+  if (best == null) best = closestRow(buttons, buttons[now], dir);
+  if (best != null) best.focus();
+}
+
+function closestRow(buttons, current, dir) {
+  const from = current.getBoundingClientRect();
   let best = null;
   let bestRow = 0;
   let bestGap = 0;
@@ -2853,11 +2873,12 @@ function moveFocus(buttons, now, dir) {
       bestGap = gap;
     }
   }
-  if (best != null) best.focus();
+  return best;
 }
 
 document.addEventListener("keydown", function (e) {
-  if (e.target.tagName == "INPUT") return;   // 이름 칸에 글자 쓰는 중이면 무시
+  // 이름 칸에서는 위/아래 화살표만 (나머지 키는 글자 쓰기)
+  if (e.target.tagName == "INPUT" && e.code != "ArrowUp" && e.code != "ArrowDown") return;
   if (e.code == "Space") e.preventDefault();   // 화면이 내려가거나 버튼이 두 번 눌리지 않게
   if (e.repeat) return;
   const buttons = keyButtons();

@@ -298,17 +298,21 @@ button {
   margin: 8px 0;
 }
 
+.char-list button {
+  padding: 2px;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+}
+
 .char-list img {
   width: 40px;
   height: 44px;
   object-fit: contain;
-  padding: 2px;
-  border: 3px solid transparent;
-  border-radius: 10px;
-  cursor: pointer;
 }
 
-.char-list img.selected {
+.char-list button.selected {
   border-color: #ff922b;
   background: #fff4e6;
 }
