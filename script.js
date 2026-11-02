@@ -84,6 +84,8 @@ let setupChars = [0, 1, 2, 3];
 let setupNames = ["", "", "", ""];
 let setupCpu = [false, true, true, true];
 let setupGender = ["M", "F", "M", "F"];
+let setupPhotos = ["", "", "", ""];   // + 버튼으로 넣은 사진 (없으면 "")
+let photoSlot = 0;
 let setupMode = 0;
 let gameMode = modes[0];
 
@@ -293,7 +295,32 @@ function pickCharacter(slot, c) {
     if (setupChars[i] == c) setupChars[i] = setupChars[slot];
   }
   setupChars[slot] = c;
+  setupPhotos[slot] = "";
   drawSetup();
+}
+
+// + 버튼 : 사진 파일 고르기 창 열기
+function choosePhoto(slot) {
+  photoSlot = slot;
+  document.getElementById("photoInput").click();
+}
+
+// 고른 사진을 가운데만 정사각형으로 잘라서 160x160 으로 줄여 저장 (큰 사진은 게임이 느려져서)
+function loadPhoto() {
+  const input = document.getElementById("photoInput");
+  if (input.files.length == 0) return;
+  const img = new Image();
+  img.onload = function () {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 160;
+    const size = Math.min(img.width, img.height);
+    canvas.getContext("2d").drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 160, 160);
+    setupPhotos[photoSlot] = canvas.toDataURL("image/png");
+    input.value = "";   // 같은 사진을 다시 골라도 되게
+    drawSetup();
+  };
+  img.src = URL.createObjectURL(input.files[0]);
 }
 
 function drawSetup() {
@@ -328,20 +355,25 @@ function drawSetup() {
   for (let i = 0; i < setupCount; i++) {
     setupCpu[i] = i >= humanCount;
     const myChar = characters[setupChars[i]];
+    let myImg = myChar.img;
+    if (setupPhotos[i] != "") myImg = setupPhotos[i];
     if (setupCpu[i]) html += '<div class="slot cpu"><div class="slot-title">🤖 컴퓨터</div>';
     else html += '<div class="slot"><div class="slot-title">' + (i + 1) + 'P</div>';
 
     let genderText = "♂ 남자";
     if (setupGender[i] == "F") genderText = "♀ 여자";
-    html += '<img class="slot-big" src="' + myChar.img + '">' +
+    html += '<img class="slot-big" src="' + myImg + '">' +
       '<button class="gender-btn ' + setupGender[i] + '" id="gender' + i + '" onclick="toggleGender(' + i + ')">' + genderText + '</button>' +
       '<input type="text" id="name' + i + '" maxlength="6" placeholder="' + myChar.name + '" value="' + setupNames[i] + '" oninput="setName(' + i + ')">' +
       '<div class="char-list">';
     for (let c = 0; c < characters.length; c++) {
       let cls = "";
-      if (setupChars[i] == c) cls = "selected";
+      if (setupChars[i] == c && setupPhotos[i] == "") cls = "selected";
       html += '<button class="' + cls + '" id="char' + i + "_" + c + '" title="' + characters[c].name + '" onclick="pickCharacter(' + i + ', ' + c + ')"><img src="' + characters[c].img + '"></button>';
     }
+    // + 버튼 (사진을 넣었으면 그 사진이 보임)
+    if (setupPhotos[i] == "") html += '<button class="add-photo" id="photo' + i + '" title="내 사진 넣기" onclick="choosePhoto(' + i + ')">+</button>';
+    else html += '<button class="selected" id="photo' + i + '" title="다른 사진으로 바꾸기" onclick="choosePhoto(' + i + ')"><img class="photo" src="' + setupPhotos[i] + '"></button>';
     html += '</div></div>';
   }
   document.getElementById("slots").innerHTML = html;
@@ -353,11 +385,13 @@ function startGame() {
 
   for (let i = 0; i < setupCount; i++) {
     const ch = characters[setupChars[i]];
+    let img = ch.img;
+    if (setupPhotos[i] != "") img = setupPhotos[i];
     let name = setupNames[i];
     if (name == "") name = ch.name;
 
     players.push({
-      id: i, name: name, cpu: setupCpu[i], gender: setupGender[i], img: ch.img, color: ch.color,
+      id: i, name: name, cpu: setupCpu[i], gender: setupGender[i], img: img, color: ch.color,
       money: 0, int: 0, str: 0, sense: 0, talent: null,
       pos: 0, area: "baby", stepsLeft: 0, finished: false,
       college: false, job: null, grade: 0, retired: false,

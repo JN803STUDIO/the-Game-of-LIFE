@@ -219,7 +219,7 @@ button {
 }
 
 .slot {
-  width: 210px;
+  width: 300px;
   background: white;
   border-radius: 20px;
   padding: 16px;
@@ -298,6 +298,12 @@ button {
   margin: 8px 0;
 }
 
+.char-list {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
 .char-list button {
   padding: 2px;
   border: 3px solid transparent;
@@ -310,6 +316,19 @@ button {
   width: 40px;
   height: 44px;
   object-fit: contain;
+}
+
+/* + 버튼 (내 사진 넣기) */
+.char-list .add-photo {
+  width: 50px;
+  border: 3px dashed #adb5bd;
+  font-size: 26px;
+  color: #868e96;
+}
+
+.char-list img.photo {
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .char-list button.selected {
