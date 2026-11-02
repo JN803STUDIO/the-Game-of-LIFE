@@ -2262,10 +2262,11 @@ function continueGame() {
 
 // ----- 미니게임 -----
 // stat : 아이 때 받는 능력치, cpu : 컴퓨터가 게임하는 함수 (점수를 돌려줌)
+// max : 최고 점수 (안 쓰면 100점)
 const minigames = [
   { name: "🎯 타이밍 대결", desc: "왔다 갔다 하는 막대를 초록색 가운데에서 멈추세요!", play: playTiming, stat: "sense", cpu: cpuTiming },
   { name: "🍀 행운의 상자", desc: "상자 5개 중 하나를 고르세요! (0 ~ 100점)", play: playBox, stat: "sense", cpu: cpuBox },
-  { name: "🎡 룰렛 대결", desc: "숫자 룰렛을 돌려서 가장 큰 숫자가 나온 사람이 1등!", play: playSpin, stat: "int", cpu: cpuSpin },
+  { name: "🎡 룰렛 대결", desc: "숫자 룰렛을 돌려서 가장 큰 숫자가 나온 사람이 1등!", play: playSpin, stat: "int", cpu: cpuSpin, max: 10 },
   { name: "⏱️ 5초 맞추기", desc: "시작을 누르고 마음속으로 5초를 센 뒤 멈추세요! (가까울수록 높은 점수)", play: playStopwatch, stat: "sense", cpu: cpuStopwatch },
   { name: "🧮 암산 대결", desc: "덧셈 5문제! 맞힌 개수만큼 점수를 받아요.", play: playMath, stat: "int", cpu: cpuMath },
   { name: "🃏 업다운", desc: "다음 숫자가 더 클까요, 작을까요? 5번 맞혀 보세요!", play: playUpDown, stat: "sense", cpu: cpuUpDown },
@@ -2284,7 +2285,8 @@ function showMini(title, html) {
 function startMinigame() {
   busy = true;
   updateScreen();
-  mini = { game: pick(minigames), index: 0, scores: [], prize: null };
+  // 혼자 하면 (컴퓨터도 없으면) 순위 대신 목표 점수로 상품
+  mini = { game: pick(minigames), index: 0, scores: [], prize: null, solo: players.length == 1 };
   playBgm("mini");
   sfx("start");
   showMini("🎮 미니게임 : " + mini.game.name, mini.game.desc + "<br><br>먼저 <b>🎁 상품 룰렛</b>으로 1등 상품을 정해요!" +
@@ -2317,8 +2319,10 @@ function spinPrize() {
   }
   showRoulette(null, title, text, labels, function (label, k) {
     mini.prize = miniPrizes[k];
+    let rule = "🥈 2등 절반 · 🥉 3등 30%";
+    if (mini.solo) rule = "혼자 하는 미니게임! " + goalScore(0) + "점 이상 전부 · " + goalScore(1) + "점 이상 절반 · " + goalScore(2) + "점 이상 30%";
     showMini("🎮 미니게임 : " + mini.game.name, mini.game.desc +
-      '<div class="prize-box">🥇 1등 상품 <b>' + rewardText() + '</b><br><small>🥈 2등 절반 · 🥉 3등 30%</small></div>' +
+      '<div class="prize-box">🥇 1등 상품 <b>' + rewardText() + '</b><br><small>' + rule + '</small></div>' +
       '<button class="big-btn" onclick="miniNextPlayer()">시작!</button>');
   });
 }
@@ -2355,17 +2359,32 @@ function miniNext() {
   miniNextPlayer();
 }
 
+// 혼자 할 때 목표 점수 (0 : 최고 점수의 80%, 1 : 50%, 2 : 30%)
+function goalScore(rank) {
+  let max = 100;
+  if (mini.game.max) max = mini.game.max;
+  return Math.ceil(max * [0.8, 0.5, 0.3][rank]);
+}
+
 // 순위, 상품 (같은 점수면 같은 등수)
 function miniFinish() {
   const ranked = players.slice();
   ranked.sort(function (a, b) { return mini.scores[b.id] - mini.scores[a.id]; });
 
-  const medals = ["🥇", "🥈", "🥉", "4등"];
+  let medals = ["🥇", "🥈", "🥉", "4등"];
+  if (mini.solo) medals = ["🥇 목표 달성!", "🥈 절반 성공", "🥉 조금 성공", "😢 다음엔 꼭"];
   let html = "";
   for (const p of ranked) {
     let rank = 0;   // 나보다 점수가 높은 사람 수
     for (const other of players) {
       if (mini.scores[other.id] > mini.scores[p.id]) rank++;
+    }
+    // 혼자면 목표 점수를 몇 개 넘었는지로 등수
+    if (mini.solo) {
+      rank = 3;
+      for (let g = 2; g >= 0; g--) {
+        if (mini.scores[p.id] >= goalScore(g)) rank = g;
+      }
     }
     if (rank == 0) p.miniWins++;
 
