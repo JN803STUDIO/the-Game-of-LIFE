@@ -215,6 +215,7 @@ class DeleteMeIn(BaseModel):
 
 
 class SaveIn(BaseModel):
+    game_uid: str = Field(min_length=1, max_length=32)   # 같은 게임이면 덮어쓰기
     title: str = Field(max_length=60)
     mode: Literal["full", "junior", "adult"]
     round: int = Field(ge=0)
@@ -566,7 +567,7 @@ def delete_me(data: DeleteMeIn, authorization: str | None = Header(default=None)
     return {"ok": True}
 
 
-# ----- 이어하기 (저장할 때마다 쌓이고, 한 사람당 최근 MAX_SAVES 개까지) -----
+# ----- 이어하기 (게임마다 하나씩 쌓이고 같은 게임은 덮어쓰기, 한 사람당 최근 MAX_SAVES 개까지) -----
 MAX_SAVES = 30
 
 
@@ -611,10 +612,14 @@ def write_save(data: SaveIn, authorization: str | None = Header(default=None)):
     db = get_db()
     try:
         with db.cursor() as cur:
+            # 같은 게임(game_uid)이 이미 있으면 덮어쓰고 시간도 새로 (id = LAST_INSERT_ID(id) : 원래 번호 돌려받기)
             cur.execute(
-                "INSERT INTO game_saves (user_id, title, game_mode, round_no, player_count, state) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (user["id"], data.title, data.mode, data.round, data.players, data.state),
+                "INSERT INTO game_saves (user_id, game_uid, title, game_mode, round_no, player_count, state) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), title = VALUES(title), game_mode = VALUES(game_mode), "
+                "round_no = VALUES(round_no), player_count = VALUES(player_count), state = VALUES(state), "
+                "saved_at = CURRENT_TIMESTAMP",
+                (user["id"], data.game_uid, data.title, data.mode, data.round, data.players, data.state),
             )
             save_id = cur.lastrowid
             # 너무 많이 쌓이면 오래된 것부터 지우기

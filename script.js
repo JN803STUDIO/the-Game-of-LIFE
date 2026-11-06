@@ -382,6 +382,7 @@ function drawSetup() {
 
 function startGame() {
   gameMode = modes[setupMode];
+  gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // 저장할 때 같은 게임인지 구분
 
   for (let i = 0; i < setupCount; i++) {
     const ch = characters[setupChars[i]];
@@ -819,7 +820,8 @@ function drawEtcPanel() {
 // ----- 게임 메뉴 (저장 · 홈으로) -----
 const SAVE_KEY = "lifeGameSaves";  // 게스트는 이 브라우저(localStorage)에 저장 목록
 const MAX_SAVES = 30;              // 저장은 최근 30개까지
-let loadedSaveId = null;           // 이어하기로 시작한 저장 번호 (끝까지 하면 그 저장 지우기)
+let gameId = "";                   // 이 게임의 번호 (같은 게임은 저장을 덮어써요)
+let saveId = null;                 // 이 게임의 저장 번호 (끝까지 하면 그 저장 지우기)
 
 // 지금 저장하면 안 되는 이유 (괜찮으면 빈 글자)
 // 이동 중이거나 창이 떠 있을 때 저장하면 불러올 때 이어갈 수가 없어서, 내 차례 룰렛 전에만 저장해요
@@ -840,7 +842,7 @@ function drawGamePanel(note) {
   let where = "이 브라우저에";
   if (loginUser != null) where = safeText(loginUser.nickname) + "님 계정에";
   if (!note) note = problem;
-  if (!note) note = "저장할 때마다 " + where + " 하나씩 쌓여요. (최근 " + MAX_SAVES + "개까지)";
+  if (!note) note = where + " 저장돼요. 같은 게임은 덮어쓰고, 다른 게임은 따로 쌓여요. (최근 " + MAX_SAVES + "개까지)";
 
   menuPanel.innerHTML = panelHead("☰ 메뉴", true) +
     '<div class="game-menu">' +
@@ -859,7 +861,7 @@ async function saveGame(goHome) {
     return;
   }
   const state = JSON.stringify({
-    mode: gameMode.key, players: players, turn: turn, round: round,
+    gameId: gameId, mode: gameMode.key, players: players, turn: turn, round: round,
     finishCount: finishCount, spinCount: spinCount, topStage: topStage,
     checkpointPending: checkpointPending, miniPending: miniPending,
     rankHistory: rankHistory, marketMult: marketMult, metPairs: metPairs, guardNews: guardNews,
@@ -871,11 +873,19 @@ async function saveGame(goHome) {
 
   try {
     if (loginUser != null) {
-      await callApi("POST", "/saves", { title: title, mode: gameMode.key, round: round, players: players.length, state: state });
+      const result = await callApi("POST", "/saves", { game_uid: gameId, title: title, mode: gameMode.key, round: round, players: players.length, state: state });
+      saveId = result.id;
     } else {
-      const list = localSaves();
-      list.unshift({ id: Date.now(), title: title, saved_at: nowText(), state: state });
+      // 같은 게임 저장은 빼고 맨 위에 새로 (번호는 그대로)
+      const list = [];
+      let id = Date.now();
+      for (const s of localSaves()) {
+        if (s.gameId == gameId || s.id == saveId) id = s.id;
+        else list.push(s);
+      }
+      list.unshift({ id: id, gameId: gameId, title: title, saved_at: nowText(), state: state });
       localStorage.setItem(SAVE_KEY, JSON.stringify(list.slice(0, MAX_SAVES)));
+      saveId = id;
     }
   } catch (e) {
     drawGamePanel("저장하지 못했어요 : " + e.message);
@@ -1004,7 +1014,8 @@ async function loadGame(id) {
   metPairs = s.metPairs;
   guardNews = s.guardNews;
   logList.innerHTML = s.log;
-  loadedSaveId = id;
+  gameId = s.gameId || String(id);   // 예전 저장(번호 없음)은 저장 번호로
+  saveId = id;
 
   showScreen("gameScreen");
   wheelImg.src = images.roulette;
@@ -3017,7 +3028,7 @@ function statusCard(p) {
 // ----- 게임 끝 -----
 function endGame() {
   busy = true;
-  if (loadedSaveId != null) deleteSave(loadedSaveId).catch(function () {});   // 끝까지 한 게임은 이어하기에서 빼기
+  if (saveId != null) deleteSave(saveId).catch(function () {});   // 끝까지 한 게임은 이어하기에서 빼기
   playBgm("result");
   updateScreen();
   marketSettle(0);
