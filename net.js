@@ -20,7 +20,7 @@ const net = {
   started: false,
   playerOf: {},      // 연결 번호 → 플레이어 번호 (방장 = 0번)
   gone: {},          // 게임 중에 나간 사람 연결 번호
-  me: { name: "", gender: "M", char: 0 },
+  me: { name: "", gender: "M", char: 0, photo: "" },
   lastClone: null,   // 방장 : 마지막으로 보낸 화면 (비교용 복사본)
   dirty: false,
   remoteClick: false // 방장 : 다른 사람 대신 누르는 중
@@ -145,7 +145,7 @@ function drawLobby() {
     if (m.cid == net.host) name = "👑 " + name;
     if (m.cid == net.you) name += " (나)";
     html += '<div class="choice-btn member' + (m.cid == net.you ? " selected" : "") + '">' +
-            '<span class="choice-emoji"><img src="' + characters[m.char].img + '"></span>' +
+            '<span class="choice-emoji"><img src="' + netImg(m) + '"></span>' +
             '<span class="choice-name">' + name + '</span>' +
             '<span class="choice-name">' + (m.gender == "F" ? "여자" : "남자") + '</span></div>';
   }
@@ -159,19 +159,21 @@ function drawLobby() {
     if (m.cid == net.you) {
       net.me.gender = m.gender;
       net.me.char = m.char;
+      net.me.photo = m.photo;
       const nameBox = document.getElementById("lobbyName");
       if (document.activeElement != nameBox) nameBox.value = m.name;
     }
   }
   const genderName = net.me.gender == "F" ? "여자" : "남자";
-  document.getElementById("previewEmoji").innerHTML = '<img src="' + characters[net.me.char].img + '">';
-  document.getElementById("previewText").textContent = genderName + " · " + characters[net.me.char].name;
+  document.getElementById("previewEmoji").innerHTML = '<img class="' + (net.me.photo ? "photo" : "") + '" src="' + netImg(net.me) + '">';
+  document.getElementById("previewText").textContent = genderName + " · " + (net.me.photo ? "내 사진" : characters[net.me.char].name);
+  document.getElementById("lobbyPhotoBtn").classList.toggle("selected", net.me.photo != "");
   for (const btn of document.querySelectorAll("#lobbyScreen .gender-btn")) {
     btn.classList.toggle("selected", btn.dataset.gender == net.me.gender);
   }
   let chars = "";
   for (let c = 0; c < characters.length; c++) {
-    chars += '<button class="choice-btn character-btn' + (c == net.me.char ? " selected" : "") + '" type="button" onclick="netSetMe(\'char\', ' + c + ')">' +
+    chars += '<button class="choice-btn character-btn' + (c == net.me.char && !net.me.photo ? " selected" : "") + '" type="button" onclick="netPickChar(' + c + ')">' +
              '<span class="choice-emoji"><img src="' + characters[c].img + '"></span><span class="choice-name">' + characters[c].name + '</span></button>';
   }
   document.getElementById("lobbyChars").innerHTML = chars;
@@ -192,6 +194,42 @@ function drawLobby() {
   start.disabled = net.members.length < 2;
 }
 
+// 사진이 있으면 사진, 없으면 고른 캐릭터 그림
+function netImg(m) {
+  return m.photo ? m.photo : characters[m.char].img;
+}
+
+function netPickChar(c) {
+  net.me.char = c;
+  net.me.photo = "";   // 캐릭터를 다시 고르면 사진은 빼기
+  netMeChanged();
+}
+
+// + 버튼 : 사진을 골라 가운데만 잘라서 160x160 으로 (게임 설정 화면과 같은 방식, 보내기 가볍게 jpg)
+function netChoosePhoto() {
+  document.getElementById("lobbyPhotoInput").click();
+}
+
+function netLoadPhoto() {
+  const input = document.getElementById("lobbyPhotoInput");
+  if (input.files.length == 0) return;
+  const img = new Image();
+  img.onload = function () {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 160;
+    const size = Math.min(img.width, img.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 160, 160);
+    ctx.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 160, 160);
+    net.me.photo = canvas.toDataURL("image/jpeg", 0.85);
+    input.value = "";
+    netMeChanged();
+  };
+  img.src = URL.createObjectURL(input.files[0]);
+}
+
 function netSetMe(key, value) {
   net.me[key] = value;
   netMeChanged();
@@ -199,7 +237,7 @@ function netSetMe(key, value) {
 
 function netMeChanged() {
   net.me.name = document.getElementById("lobbyName").value.trim();
-  netSend({ type: "me", name: net.me.name, gender: net.me.gender, char: net.me.char });
+  netSend({ type: "me", name: net.me.name, gender: net.me.gender, char: net.me.char, photo: net.me.photo });
 }
 
 function netStart() {
@@ -234,7 +272,7 @@ function netStarted(msg) {
       setupNames[i] = m.name;
       setupGender[i] = m.gender;
       setupCpu[i] = false;
-      setupPhotos[i] = "";
+      setupPhotos[i] = m.photo || "";
     }
     players = [];
     startGame();

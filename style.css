@@ -2322,3 +2322,17 @@ button:focus-visible {
 .room-ui .gender-row .gender-btn.selected {
   background: #eef2ff;
 }
+
+/* 대기실 + 버튼 (내 사진) */
+.room-ui .photo-btn {
+  width: 100%;
+  margin-top: 8px;
+  border-style: dashed;
+}
+
+.room-ui .preview-emoji img.photo {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+}

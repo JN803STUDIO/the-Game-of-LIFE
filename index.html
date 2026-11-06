@@ -218,6 +218,9 @@
       <section class="section">
         <h2>캐릭터 선택</h2>
         <div id="lobbyChars" class="choice-row character-row"></div>
+        <!-- 추가 : + 버튼으로 내 사진을 캐릭터로 -->
+        <button id="lobbyPhotoBtn" class="choice-btn photo-btn" type="button" onclick="netChoosePhoto()">+ 내 사진으로 캐릭터 만들기</button>
+        <input type="file" id="lobbyPhotoInput" class="hidden" accept="image/*" onchange="netLoadPhoto()">
       </section>
 
       <!-- 추가 : 게임 모드 (방장만 바꿀 수 있어요) -->

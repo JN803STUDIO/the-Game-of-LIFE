@@ -964,7 +964,12 @@ def clean_member(data, fallback: str) -> dict:
     char = data.get("char")
     if not isinstance(char, int) or not 0 <= char <= 3:
         char = 0
-    return {"name": name, "gender": gender, "char": char}
+    # 내 사진 (+ 버튼) : 작은 그림 데이터만 받기
+    photo = data.get("photo", "")
+    if not (isinstance(photo, str) and len(photo) <= 200_000 and
+            re.fullmatch(r"data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+", photo)):
+        photo = ""
+    return {"name": name, "gender": gender, "char": char, "photo": photo}
 
 
 def lobby_state(room: dict) -> dict:
