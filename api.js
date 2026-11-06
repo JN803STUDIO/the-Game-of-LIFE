@@ -40,7 +40,13 @@ async function callApi(method, url, data) {
   }
 
   const res = await fetch("/api" + url, options);
-  const json = await res.json();
+  // 서버가 죽었을 때는 JSON 이 아닌 글자가 와요 → 알아볼 수 있는 메시지로
+  let json;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new Error("서버에 문제가 생겼어요. 잠시 후 다시 해 주세요. (" + res.status + ")");
+  }
   if (!res.ok) {
     let message = "서버 오류";
     if (json.detail) message = json.detail;
