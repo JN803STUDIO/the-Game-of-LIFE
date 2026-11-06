@@ -89,14 +89,18 @@ def get_current_user(authorization: str | None) -> dict:
 
 
 # ----- 요청으로 받을 데이터 모양 -----
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
 class RegisterIn(BaseModel):
-    username: str = Field(min_length=3, max_length=30)
+    username: str = Field(min_length=3, max_length=30, pattern=r"^[^@\s]+$")   # @ 가 있으면 이메일과 헷갈려서 막기
+    email: str = Field(max_length=100, pattern=EMAIL_PATTERN)
     password: str = Field(min_length=4, max_length=50)
     nickname: str = Field(min_length=1, max_length=20)
 
 
 class LoginIn(BaseModel):
-    username: str = Field(max_length=30)
+    username: str = Field(max_length=100)   # 아이디 또는 이메일
     password: str = Field(max_length=50)
 
 
@@ -128,7 +132,7 @@ async def hide_backend_folder(request: Request, call_next):
 async def validation_error(request: Request, exc: RequestValidationError):
     detail = "입력값을 확인해 주세요."
     if request.url.path in ("/api/register", "/api/login"):
-        detail += " (아이디 3자 이상, 비밀번호 4자 이상, 닉네임 1자 이상)"
+        detail += " (아이디 3자 이상 · @ 없이, 올바른 이메일, 비밀번호 4자 이상, 닉네임 1자 이상)"
     return JSONResponse({"detail": detail}, status_code=422)
 
 
@@ -152,14 +156,18 @@ def register(data: RegisterIn):
     db = get_db()
     try:
         with db.cursor() as cur:
+            email = data.email.lower()
             cur.execute("SELECT id FROM users WHERE username = %s", (data.username,))
             if cur.fetchone():
                 raise HTTPException(status_code=409, detail="이미 있는 아이디예요.")
+            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cur.fetchone():
+                raise HTTPException(status_code=409, detail="이미 가입된 이메일이에요.")
 
             salt = secrets.token_hex(16)
             cur.execute(
-                "INSERT INTO users (username, password_hash, salt, nickname) VALUES (%s, %s, %s, %s)",
-                (data.username, hash_password(data.password, salt), salt, data.nickname),
+                "INSERT INTO users (username, email, password_hash, salt, nickname) VALUES (%s, %s, %s, %s, %s)",
+                (data.username, email, hash_password(data.password, salt), salt, data.nickname),
             )
             user_id = cur.lastrowid
 
@@ -174,12 +182,16 @@ def login(data: LoginIn):
     db = get_db()
     try:
         with db.cursor() as cur:
-            cur.execute("SELECT * FROM users WHERE username = %s", (data.username,))
+            # @ 가 있으면 이메일로, 없으면 아이디로 찾기
+            if "@" in data.username:
+                cur.execute("SELECT * FROM users WHERE email = %s", (data.username.lower(),))
+            else:
+                cur.execute("SELECT * FROM users WHERE username = %s", (data.username,))
             user = cur.fetchone()
 
         # 비밀번호 비교 (compare_digest = 해킹에 안전한 비교)
         if user is None or not hmac.compare_digest(hash_password(data.password, user["salt"]), user["password_hash"]):
-            raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸어요.")
+            raise HTTPException(status_code=401, detail="아이디(이메일) 또는 비밀번호가 틀렸어요.")
 
         token = create_session(db, user["id"])
         return {"token": token, "user": {"id": user["id"], "username": user["username"], "nickname": user["nickname"]}}

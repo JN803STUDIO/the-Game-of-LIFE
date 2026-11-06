@@ -83,10 +83,16 @@ function setLoginTab(tab) {
   document.getElementById("tabLogin").classList.toggle("selected", tab == "login");
   document.getElementById("tabRegister").classList.toggle("selected", tab == "register");
   document.getElementById("loginNick").classList.toggle("hidden", tab == "login");
+  document.getElementById("loginEmail").classList.toggle("hidden", tab == "login");
+  const idBox = document.getElementById("loginId");
   if (tab == "login") {
     document.getElementById("loginBtn").textContent = "로그인";
+    idBox.placeholder = "아이디 또는 이메일";
+    idBox.maxLength = 100;
   } else {
     document.getElementById("loginBtn").textContent = "회원가입";
+    idBox.placeholder = "아이디";
+    idBox.maxLength = 30;
   }
   document.getElementById("loginMsg").textContent = "";
 }
@@ -97,6 +103,7 @@ async function submitLogin() {
   const username = document.getElementById("loginId").value;
   const password = document.getElementById("loginPw").value;
   const nickname = document.getElementById("loginNick").value;
+  const email = document.getElementById("loginEmail").value;
   const msg = document.getElementById("loginMsg");
 
   try {
@@ -104,7 +111,7 @@ async function submitLogin() {
     if (loginTab == "login") {
       result = await callApi("POST", "/login", { username: username, password: password });
     } else {
-      result = await callApi("POST", "/register", { username: username, password: password, nickname: nickname });
+      result = await callApi("POST", "/register", { username: username, email: email, password: password, nickname: nickname });
     }
     localStorage.setItem("token", result.token);
     loginUser = result.user;

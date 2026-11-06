@@ -11,6 +11,7 @@ USE life_game;
 CREATE TABLE IF NOT EXISTS users (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   username      VARCHAR(30)  NOT NULL UNIQUE,   -- 아이디
+  email         VARCHAR(100) NOT NULL UNIQUE,   -- 이메일 (아이디 대신 로그인할 때도 씀)
   password_hash CHAR(128)    NOT NULL,          -- 암호화된 비밀번호
   salt          CHAR(32)     NOT NULL,          -- 암호화용 랜덤 값
   nickname      VARCHAR(20)  NOT NULL,          -- 닉네임

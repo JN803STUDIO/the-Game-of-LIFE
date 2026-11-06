@@ -18,7 +18,8 @@
         <button id="tabLogin" class="selected" onclick="setLoginTab('login')">로그인</button>
         <button id="tabRegister" onclick="setLoginTab('register')">회원가입</button>
       </div>
-      <input type="text" id="loginId" placeholder="아이디" maxlength="30">
+      <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100">
+      <input type="email" id="loginEmail" class="hidden" placeholder="이메일" maxlength="100">
       <input type="password" id="loginPw" placeholder="비밀번호" maxlength="50">
       <input type="text" id="loginNick" class="hidden" placeholder="닉네임" maxlength="20">
       <p id="loginMsg"></p>
