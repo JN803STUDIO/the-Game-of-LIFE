@@ -84,6 +84,7 @@ function setLoginTab(tab) {
   document.getElementById("tabRegister").classList.toggle("selected", tab == "register");
   document.getElementById("loginNick").classList.toggle("hidden", tab == "login");
   document.getElementById("loginEmail").classList.toggle("hidden", tab == "login");
+  document.getElementById("loginPw2Box").classList.toggle("hidden", tab == "login");
   const idBox = document.getElementById("loginId");
   if (tab == "login") {
     document.getElementById("loginBtn").textContent = "로그인";
@@ -98,13 +99,29 @@ function setLoginTab(tab) {
 }
 
 
+// ----- 눈 버튼 : 비밀번호 보이기 / 숨기기 -----
+function togglePw(id, btn) {
+  const box = document.getElementById(id);
+  const show = box.type == "password";
+  box.type = show ? "text" : "password";
+  btn.textContent = show ? "🙈" : "👁️";
+  btn.setAttribute("aria-label", show ? "비밀번호 숨기기" : "비밀번호 보기");
+}
+
+
 // ----- 로그인 / 회원가입 버튼 -----
 async function submitLogin() {
   const username = document.getElementById("loginId").value;
   const password = document.getElementById("loginPw").value;
   const nickname = document.getElementById("loginNick").value;
   const email = document.getElementById("loginEmail").value;
+  const password2 = document.getElementById("loginPw2").value;
   const msg = document.getElementById("loginMsg");
+
+  if (loginTab == "register" && password != password2) {
+    msg.textContent = "비밀번호가 서로 달라요. 다시 확인해 주세요.";
+    return;
+  }
 
   try {
     let result;

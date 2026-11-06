@@ -151,6 +151,26 @@ button {
   border-radius: 12px;
 }
 
+/* 비밀번호 칸 + 오른쪽 눈 버튼 */
+.pw-box {
+  position: relative;
+}
+
+.pw-box input {
+  padding-right: 46px;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  font-size: 20px;
+  padding: 4px;
+}
+
 #loginMsg {
   min-height: 20px;
   color: #e03131;

@@ -20,7 +20,14 @@
       </div>
       <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100">
       <input type="email" id="loginEmail" class="hidden" placeholder="이메일" maxlength="100">
-      <input type="password" id="loginPw" placeholder="비밀번호" maxlength="50">
+      <div class="pw-box">
+        <input type="password" id="loginPw" placeholder="비밀번호" maxlength="50">
+        <button type="button" class="eye-btn" onclick="togglePw('loginPw', this)" aria-label="비밀번호 보기">👁️</button>
+      </div>
+      <div id="loginPw2Box" class="pw-box hidden">
+        <input type="password" id="loginPw2" placeholder="비밀번호 확인" maxlength="50">
+        <button type="button" class="eye-btn" onclick="togglePw('loginPw2', this)" aria-label="비밀번호 보기">👁️</button>
+      </div>
       <input type="text" id="loginNick" class="hidden" placeholder="닉네임" maxlength="20">
       <p id="loginMsg"></p>
       <button id="loginBtn" class="big-btn" onclick="submitLogin()">로그인</button>
