@@ -2943,7 +2943,10 @@ function showResult() {
   showScreen("resultScreen");
 
   // 로그인했으면 기록 저장 (api.js)
-  saveRecord({ total: players[0].total, rank: ranked.indexOf(players[0]) + 1, players: players.length, job: jobTitle(players[0]) });
+  saveRecord({
+    total: players[0].total, rank: ranked.indexOf(players[0]) + 1, players: players.length, job: jobTitle(players[0]),
+    mode: gameMode.key, rounds: round, talent: players[0].talent, married: players[0].spouse != null, kids: players[0].kids.length
+  });
 }
 
 

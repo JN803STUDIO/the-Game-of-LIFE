@@ -8,9 +8,11 @@
 # =====================================================
 import hashlib
 import hmac
+import json
 import os
 import secrets
 from pathlib import Path
+from typing import Literal
 
 import pymysql
 from dotenv import load_dotenv
@@ -49,10 +51,16 @@ def hash_password(password: str, salt: str) -> str:
 
 
 # ----- 로그인 토큰 만들기 -----
+SESSION_DAYS = 7   # 로그인 유지 기간 (일)
+
+
 def create_session(db, user_id: int) -> str:
     token = secrets.token_hex(32)
     with db.cursor() as cur:
-        cur.execute("INSERT INTO sessions (token, user_id) VALUES (%s, %s)", (token, user_id))
+        cur.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, NOW() + INTERVAL %s DAY)",
+            (token, user_id, SESSION_DAYS),
+        )
     return token
 
 
@@ -67,7 +75,8 @@ def get_current_user(authorization: str | None) -> dict:
         with db.cursor() as cur:
             cur.execute(
                 "SELECT u.id, u.username, u.nickname FROM sessions s "
-                "JOIN users u ON u.id = s.user_id WHERE s.token = %s",
+                "JOIN users u ON u.id = s.user_id "
+                "WHERE s.token = %s AND (s.expires_at IS NULL OR s.expires_at > NOW())",
                 (token,),
             )
             user = cur.fetchone()
@@ -96,6 +105,11 @@ class RecordIn(BaseModel):
     rank: int = Field(ge=1, le=4)
     players: int = Field(ge=1, le=4)
     job: str = Field(max_length=40)
+    mode: Literal["full", "junior", "adult"] = "full"
+    rounds: int | None = Field(default=None, ge=0)
+    talent: Literal["int", "str", "sense"] | None = None
+    married: bool = False
+    kids: int = Field(default=0, ge=0, le=10)
 
 
 app = FastAPI(title="인생게임 서버")
@@ -112,10 +126,10 @@ async def hide_backend_folder(request: Request, call_next):
 # 입력값이 잘못됐을 때 한국어 메시지
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    return JSONResponse(
-        {"detail": "입력값을 확인해 주세요. (아이디 3자 이상, 비밀번호 4자 이상, 닉네임 1자 이상)"},
-        status_code=422,
-    )
+    detail = "입력값을 확인해 주세요."
+    if request.url.path in ("/api/register", "/api/login"):
+        detail += " (아이디 3자 이상, 비밀번호 4자 이상, 닉네임 1자 이상)"
+    return JSONResponse({"detail": detail}, status_code=422)
 
 
 # MySQL 이 꺼져 있거나 설정이 틀렸을 때
@@ -191,15 +205,51 @@ def logout(authorization: str | None = Header(default=None)):
     return {"ok": True}
 
 
+# ----- 보안 로그 남기기 -----
+def log_security_event(db, user_id: int | None, event_type: str, severity: str, reason: str, submitted_data: dict, action_taken: str):
+    with db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO security_logs (user_id, event_type, severity, reason, submitted_data, action_taken) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (user_id, event_type, severity, reason, json.dumps(submitted_data, ensure_ascii=False), action_taken),
+        )
+
+
+# 기록으로 인정하는 총자산 범위 (만원) : -1억 ~ 100억
+MIN_TOTAL = -10000
+MAX_TOTAL = 1000000
+
+
 @app.post("/api/records")
 def save_record(data: RecordIn, authorization: str | None = Header(default=None)):
     user = get_current_user(authorization)
     db = get_db()
     try:
+        # 1. 등수가 인원수보다 큰 경우 (예: 2명이 했는데 3등)
+        if data.rank > data.players:
+            log_security_event(
+                db, user["id"], "INVALID_RANK", "MEDIUM",
+                f"참가자 수({data.players}명)보다 높은 등수({data.rank}등)를 제출했습니다.",
+                data.model_dump(), "REJECTED",
+            )
+            raise HTTPException(status_code=400, detail="비정상적인 게임 결과입니다. (등수 오류)")
+
+        # 2. 총자산이 말이 안 되게 크거나 작은 경우
+        if data.total < MIN_TOTAL or data.total > MAX_TOTAL:
+            log_security_event(
+                db, user["id"], "ABNORMAL_ASSET", "HIGH",
+                f"허용 범위를 벗어난 자산 금액({data.total}만원)이 제출되었습니다.",
+                data.model_dump(), "REJECTED",
+            )
+            raise HTTPException(status_code=400, detail="비정상적인 자산 데이터가 감지되었습니다.")
+
         with db.cursor() as cur:
             cur.execute(
-                "INSERT INTO records (user_id, total_money, rank_pos, player_count, job) VALUES (%s, %s, %s, %s, %s)",
-                (user["id"], data.total, data.rank, data.players, data.job),
+                "INSERT INTO records (user_id, total_money, rank_pos, player_count, job, "
+                "game_mode, rounds, talent, married, kids_count) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (user["id"], data.total, data.rank, data.players, data.job,
+                 data.mode, data.rounds, data.talent, data.married, data.kids),
             )
     finally:
         db.close()
