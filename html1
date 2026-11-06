@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- 휴대폰 화면에서도 크기가 알맞게 보이도록 하는 설정 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인생게임 - 방 만들기 / 참가하기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<!-- body의 id는 script.js가 "지금 어느 페이지인지" 알아내는 데 사용해요 -->
+<body id="mainPage">
+
+  <main class="card">
+    <h1 class="title">인생게임</h1>
+    <p class="subtitle">the Game of LIFE</p>
+
+    <!-- ① 방 만들기 -->
+    <section class="section">
+      <h2>방 만들기</h2>
+      <p class="hint">새 방을 만들고, 4자리 방 코드를 친구에게 알려주세요.</p>
+      <button id="createRoomBtn" class="btn btn-primary" type="button">방 만들기</button>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ② 방 참가하기 -->
+    <section class="section">
+      <h2>방 참가하기</h2>
+      <p class="hint">친구에게 받은 4자리 방 코드를 입력하세요.</p>
+      <!--
+        maxlength="4"      : 4글자까지만 입력할 수 있어요.
+        inputmode="numeric": 휴대폰에서 숫자 키패드가 나와요.
+      -->
+      <input id="roomCodeInput" class="code-input" type="text"
+             maxlength="4" inputmode="numeric" autocomplete="off"
+             placeholder="1234" aria-label="방 코드 입력">
+      <button id="joinRoomBtn" class="btn btn-secondary" type="button">참가하기</button>
+    </section>
+  </main>
+
+  <!-- 화면(HTML)이 모두 만들어진 "다음에" 실행되도록 script는 맨 아래에 둬요 -->
+  <script src="script.js"></script>
+</body>
+</html>
