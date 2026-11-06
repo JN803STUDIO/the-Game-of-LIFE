@@ -10,10 +10,13 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 from pathlib import Path
 from typing import Literal
 
+import dns.exception
+import dns.resolver
 import pymysql
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -89,14 +92,12 @@ def get_current_user(authorization: str | None) -> dict:
 
 
 # ----- 요청으로 받을 데이터 모양 -----
-EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-
-
+# 길이 · 글자 검사는 register() 안에서 상황마다 다른 메시지로 해요
 class RegisterIn(BaseModel):
-    username: str = Field(min_length=3, max_length=30, pattern=r"^[^@\s]+$")   # @ 가 있으면 이메일과 헷갈려서 막기
-    email: str = Field(max_length=100, pattern=EMAIL_PATTERN)
-    password: str = Field(min_length=4, max_length=50)
-    nickname: str = Field(min_length=1, max_length=20)
+    username: str
+    email: str
+    password: str
+    nickname: str
 
 
 class LoginIn(BaseModel):
@@ -130,10 +131,7 @@ async def hide_backend_folder(request: Request, call_next):
 # 입력값이 잘못됐을 때 한국어 메시지
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    detail = "입력값을 확인해 주세요."
-    if request.url.path in ("/api/register", "/api/login"):
-        detail += " (아이디 3자 이상 · @ 없이, 올바른 이메일, 비밀번호 4자 이상, 닉네임 1자 이상)"
-    return JSONResponse({"detail": detail}, status_code=422)
+    return JSONResponse({"detail": "입력값을 확인해 주세요."}, status_code=422)
 
 
 # MySQL 이 꺼져 있거나 설정이 틀렸을 때
@@ -151,8 +149,62 @@ def health():
     return {"ok": True}
 
 
+# ----- 회원가입 입력 검사 -----
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9가-힣]+$")                        # 영문 · 숫자 · 한글만
+EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+
+
+def email_domain_exists(domain: str) -> bool:
+    """메일을 받을 수 있는 도메인인지 DNS 로 확인 (MX, 없으면 A 레코드)"""
+    for kind in ("MX", "A"):
+        try:
+            dns.resolver.resolve(domain, kind, lifetime=5)
+            return True
+        except dns.resolver.NXDOMAIN:
+            return False          # 없는 도메인
+        except dns.resolver.NoAnswer:
+            continue              # MX 가 없으면 A 레코드로 한 번 더
+        except (dns.exception.Timeout, dns.resolver.NoNameservers):
+            return True           # DNS 서버 문제로 확인 못 하면 막지 않기
+    return False
+
+
+def check_register(data: RegisterIn):
+    def fail(message):
+        raise HTTPException(status_code=400, detail=message)
+
+    if not data.username:
+        fail("아이디를 입력해 주세요.")
+    if not USERNAME_PATTERN.match(data.username):
+        fail("아이디에는 특수문자나 띄어쓰기를 쓸 수 없어요. (영문, 숫자, 한글만)")
+    if not 3 <= len(data.username) <= 30:
+        fail("아이디는 3~30자로 만들어 주세요.")
+
+    if not data.email:
+        fail("이메일을 입력해 주세요.")
+    if len(data.email) > 100 or not EMAIL_PATTERN.match(data.email):
+        fail("이메일 형식이 아니에요. (예: name@example.com)")
+    if not email_domain_exists(data.email.split("@")[1]):
+        fail("존재하지 않는 이메일 주소예요. @ 뒤의 주소를 확인해 주세요.")
+
+    if not data.password:
+        fail("비밀번호를 입력해 주세요.")
+    if not 4 <= len(data.password) <= 50:
+        fail("비밀번호는 4~50자로 만들어 주세요.")
+
+    if not data.nickname:
+        fail("닉네임을 입력해 주세요.")
+    if len(data.nickname) > 20:
+        fail("닉네임은 20자까지 쓸 수 있어요.")
+
+
 @app.post("/api/register")
 def register(data: RegisterIn):
+    data.username = data.username.strip()
+    data.email = data.email.strip()
+    data.nickname = data.nickname.strip()
+    check_register(data)
+
     db = get_db()
     try:
         with db.cursor() as cur:
