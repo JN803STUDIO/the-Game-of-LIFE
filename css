@@ -1,0 +1,254 @@
+/* =====================================================================
+   style.css : 인생게임 - 방 만들기 / 대기실 화면 스타일
+   index.html 과 lobby.html 이 같이 사용해요.
+   ===================================================================== */
+
+
+/* ---------- 1. 기본 설정 ---------- */
+
+/* padding(안쪽 여백)과 border(테두리)를 포함해서 크기를 계산해요.
+   이렇게 하면 width: 100% 로 정했을 때 화면 밖으로 삐져나오지 않아요. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;            /* 화면 전체 높이 이상으로 */
+  padding: 24px 16px;           /* 위아래 24px, 좌우 16px 여백 */
+  display: flex;                /* 카드를 가운데에 놓기 위해 flex 사용 */
+  justify-content: center;      /* 가로 가운데 */
+  align-items: center;          /* 세로 가운데 */
+  background: #f1f4fb;          /* 연한 하늘색 배경 */
+  color: #1f2a44;               /* 기본 글자색 (진한 남색) */
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+}
+
+/* 키보드(Tab)로 이동했을 때 어디에 있는지 보이는 테두리 */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 3px solid #f59f00;
+  outline-offset: 2px;
+}
+
+
+/* ---------- 2. 카드 (화면 가운데 하얀 상자) ---------- */
+
+.card {
+  width: 100%;
+  max-width: 440px;             /* 컴퓨터 화면에서도 너무 넓어지지 않게 */
+  padding: 32px 28px;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(31, 42, 68, 0.1);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.subtitle {
+  margin: 4px 0 28px;
+  color: #55627d;
+  letter-spacing: 0.05em;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.hint {
+  margin: 0 0 14px;
+  color: #55627d;
+  font-size: 0.9rem;
+}
+
+/* 방 만들기 / 방 참가하기 사이의 가로줄 */
+.divider {
+  margin: 28px 0;
+  border: none;
+  border-top: 1px solid #dde3f0;
+}
+
+
+/* ---------- 3. 큰 버튼 (방 만들기, 참가하기, 게임 시작) ---------- */
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;         /* 버튼도 위에서 정한 글꼴을 쓰도록 */
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 진한 파란색 버튼 */
+.btn-primary {
+  background: #3b5bdb;
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background: #2f4ac0;          /* 마우스를 올리면 조금 더 진하게 */
+}
+
+/* 연한 파란색 버튼 */
+.btn-secondary {
+  background: #e7ecff;
+  color: #2f4ac0;
+}
+.btn-secondary:hover {
+  background: #d6dfff;
+}
+
+
+/* ---------- 4. 방 코드 입력창 (index.html) ---------- */
+
+.code-input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 14px 12px;
+  border: 2px solid #ccd5ea;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 1.6rem;
+  text-align: center;
+  letter-spacing: 0.5em;        /* 숫자 사이를 넓게 */
+  text-indent: 0.5em;           /* letter-spacing 때문에 쏠린 글자를 가운데로 */
+}
+
+
+/* ---------- 5. 방 코드 표시 (lobby.html) ---------- */
+
+.back-link {
+  display: block;
+  margin-bottom: 12px;
+  color: #55627d;
+  font-size: 0.9rem;
+  text-align: left;
+  text-decoration: none;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.room-code-box {
+  margin: 16px 0 24px;
+  padding: 18px 12px;
+  background: #eef2ff;
+  border-radius: 16px;
+}
+
+.room-code-label {
+  margin: 0;
+  color: #4c5c82;
+  font-weight: 700;
+}
+
+.room-code {
+  margin: 4px 0 0;
+  color: #3b5bdb;
+  font-size: 3.5rem;            /* 아주 크게! */
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-indent: 0.15em;
+}
+
+
+/* ---------- 6. 선택 결과 미리보기 (lobby.html) ---------- */
+
+/* 이모지가 잘 보이도록 이모지 글꼴을 지정해요 */
+.preview-emoji,
+.choice-emoji {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+}
+
+.preview-emoji {
+  display: flex;                /* 이모지를 동그라미 안 가운데에 놓기 */
+  justify-content: center;
+  align-items: center;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 12px;
+  background: #fff4d6;
+  border-radius: 50%;           /* 동그랗게 */
+  font-size: 5rem;
+}
+
+.preview-text {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+
+/* ---------- 7. 성별 / 캐릭터 선택 버튼 (lobby.html) ---------- */
+
+/* 버튼들을 격자(grid)로 나란히 놓아요 */
+.choice-row {
+  display: grid;
+  gap: 8px;
+}
+.gender-row {
+  grid-template-columns: repeat(2, 1fr);   /* 2칸 */
+}
+.character-row {
+  grid-template-columns: repeat(4, 1fr);   /* 4칸 */
+}
+
+.choice-btn {
+  display: flex;
+  flex-direction: column;       /* 이모지 위, 이름 아래 */
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 4px;
+  background: #ffffff;
+  border: 2px solid #d5dcee;
+  border-radius: 12px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.choice-btn:hover {
+  border-color: #9db0f5;
+}
+
+/* 선택된 버튼 : script.js가 selected 라는 이름표(class)를 붙여 줘요 */
+.choice-btn.selected {
+  background: #eef2ff;
+  border-color: #3b5bdb;
+  font-weight: 700;
+}
+
+.choice-emoji {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.start-btn {
+  margin-top: 8px;
+}
+
+
+/* ---------- 8. 작은 화면(휴대폰)용 ---------- */
+
+@media (max-width: 400px) {
+  .card {
+    padding: 24px 16px;
+  }
+  .room-code {
+    font-size: 3rem;
+  }
+}
