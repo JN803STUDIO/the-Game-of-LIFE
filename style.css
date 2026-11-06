@@ -279,6 +279,47 @@ button {
   font-size: 17px;
 }
 
+/* 왼쪽 위 홈 버튼 */
+.home-btn {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  margin-top: 0;
+  font-size: 17px;
+}
+
+/* 타이틀 : 이어하기 */
+.big-btn.green {
+  background: #51cf66;
+  border-bottom-color: #2b8a3e;
+}
+
+#continueBtn small {
+  display: block;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* 게임 중 ☰ 메뉴 창 */
+.game-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 30px;
+}
+
+.game-menu .big-btn {
+  margin: 0;
+  font-size: 20px;
+}
+
+.game-menu-note {
+  margin: 10px 0 0;
+  color: #868e96;
+  font-size: 15px;
+  text-align: center;
+}
+
 /* =====================================================
  1. 타이틀 화면
  ===================================================== */

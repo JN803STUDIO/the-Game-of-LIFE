@@ -53,6 +53,9 @@ async function callApi(method, url, data) {
 // ----- 처음 실행 : 서버 확인 + 자동 로그인 -----
 async function initLogin() {
   addEyeButtons();
+  // 게임 중 "홈으로" 를 누르고 새로고침한 경우 : 로그인 화면 건너뛰고 타이틀로
+  const toTitle = sessionStorage.getItem("goTitle") == "1";
+  sessionStorage.removeItem("goTitle");
   try {
     await callApi("GET", "/health");
     serverOnline = true;
@@ -63,6 +66,7 @@ async function initLogin() {
   if (!serverOnline) {
     document.getElementById("loginMsg").textContent = "서버가 꺼져 있어요. 게스트로 플레이할 수 있어요.";
     document.getElementById("loginBtn").disabled = true;
+    if (toTitle) goTitle();
     return;
   }
 
@@ -75,6 +79,7 @@ async function initLogin() {
       localStorage.removeItem("token");
     }
   }
+  if (loginUser == null && toTitle) goTitle();
 }
 
 
@@ -357,6 +362,7 @@ function drawUserBar() {
 // ----- 타이틀 화면으로 -----
 function goTitle() {
   drawUserBar();
+  drawContinueButton();
   if (loginUser != null) {
     setupNames[0] = loginUser.nickname; // 1P 이름 = 내 닉네임
     drawSetup();

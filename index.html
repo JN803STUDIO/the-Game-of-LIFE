@@ -119,12 +119,14 @@
     <img id="logoImg" class="logo" alt="인생게임">
     <p class="subtitle">아기부터 노년까지, 당신의 인생은 어떻게 될까요?</p>
     <div id="titleChars"></div>
+    <button id="continueBtn" class="big-btn green hidden" onclick="loadGame()"></button>
     <button class="big-btn" onclick="showScreen('setupScreen')">게임 시작</button>
     <button class="big-btn blue" onclick="openRanking()">🏆 랭킹</button>
   </div>
 
   <!-- ========== 2. 플레이어 설정 화면 ========== -->
   <div id="setupScreen" class="screen hidden">
+    <button class="small-btn home-btn" onclick="showScreen('titleScreen')">🏠 홈</button>
     <h2 class="screen-title">플레이어 설정</h2>
     <div id="modeBox"></div>
     <div class="count-btns">
@@ -157,6 +159,7 @@
         <button id="cardMenuBtn" class="menu-btn" onclick="openPanel('card')">🎴 카드</button>
         <button class="menu-btn" onclick="openPanel('status')">📋 상태</button>
         <button class="menu-btn" onclick="openPanel('etc')">⚙️ 기타</button>
+        <button class="menu-btn" onclick="openPanel('game')">☰ 메뉴</button>
       </div>
       <button id="zoomBtn" class="map-btn" onclick="toggleZoom()">🗺️ 전체 지도</button>
 

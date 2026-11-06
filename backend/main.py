@@ -214,6 +214,14 @@ class DeleteMeIn(BaseModel):
     password: str
 
 
+class SaveIn(BaseModel):
+    title: str = Field(max_length=60)
+    mode: Literal["full", "junior", "adult"]
+    round: int = Field(ge=0)
+    players: int = Field(ge=1, le=4)
+    state: str = Field(max_length=20_000_000)   # 게임 상태 JSON (캐릭터 사진이 들어가면 커져요)
+
+
 class RecordIn(BaseModel):
     total: int
     rank: int = Field(ge=1, le=4)
@@ -553,6 +561,57 @@ def delete_me(data: DeleteMeIn, authorization: str | None = Header(default=None)
         with db.cursor() as cur:
             # 세션 · 기록 · 이어하기는 FOREIGN KEY ... ON DELETE CASCADE 로 같이 지워져요
             cur.execute("DELETE FROM users WHERE id = %s", (me_now["id"],))
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+# ----- 이어하기 (게임 저장, 한 사람당 1개 = 1번 슬롯) -----
+@app.get("/api/save")
+def load_save(authorization: str | None = Header(default=None)):
+    user = get_current_user(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT title, game_mode, round_no, player_count, state, saved_at FROM game_saves "
+                "WHERE user_id = %s AND slot = 1",
+                (user["id"],),
+            )
+            row = cur.fetchone()
+    finally:
+        db.close()
+    if row is None:
+        return None
+    row["saved_at"] = str(row["saved_at"])
+    return row
+
+
+@app.post("/api/save")
+def write_save(data: SaveIn, authorization: str | None = Header(default=None)):
+    user = get_current_user(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO game_saves (user_id, slot, title, game_mode, round_no, player_count, state) "
+                "VALUES (%s, 1, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE title = VALUES(title), game_mode = VALUES(game_mode), "
+                "round_no = VALUES(round_no), player_count = VALUES(player_count), state = VALUES(state)",
+                (user["id"], data.title, data.mode, data.round, data.players, data.state),
+            )
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.post("/api/save/delete")
+def delete_save(authorization: str | None = Header(default=None)):
+    user = get_current_user(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM game_saves WHERE user_id = %s AND slot = 1", (user["id"],))
     finally:
         db.close()
     return {"ok": True}

@@ -666,6 +666,7 @@ function openPanel(kind) {
   panelPlayer = turn;
   if (kind == "card") drawCardPanel();
   else if (kind == "status") drawStatusPanel();
+  else if (kind == "game") drawGamePanel();
   else drawEtcPanel();
   menuPanel.classList.remove("hidden");
 }
@@ -809,6 +810,155 @@ function drawEtcPanel() {
     '<h4>칸 설명</h4><div class="legend-grid">' + document.getElementById("legend").innerHTML + '</div>' +
     '<h4>최근 기록</h4><ul class="panel-log">' + log + '</ul>' +
     '<div class="panel-foot"><button class="big-btn" onclick="closePanel(); toggleZoom()">🗺️ 전체 지도 보기 / 크게 보기</button></div>';
+}
+
+
+// ----- 게임 메뉴 (저장 · 홈으로) -----
+const SAVE_KEY = "lifeGameSave";   // 게스트는 이 브라우저(localStorage)에 저장
+let loadedFromSave = false;        // 이어하기로 시작한 게임인지 (끝나면 저장 지우기)
+
+// 지금 저장하면 안 되는 이유 (괜찮으면 빈 글자)
+// 이동 중이거나 창이 떠 있을 때 저장하면 불러올 때 이어갈 수가 없어서, 내 차례 룰렛 전에만 저장해요
+function saveProblem() {
+  const p = players[turn];
+  if (busy || p.cpu || p.stepsLeft > 0) return "내 차례에 룰렛을 돌리기 전에만 저장할 수 있어요.";
+  if (isOpen(popup) || isOpen(miniBox) || isOpen(chanceBox)) return "열린 창을 닫은 뒤에 저장할 수 있어요.";
+  for (const other of players) {
+    if (other.pending.length > 0) return "하던 일이 끝난 뒤에 저장할 수 있어요.";
+  }
+  return "";
+}
+
+function drawGamePanel(note) {
+  const problem = saveProblem();
+  let off = "";
+  if (problem != "") off = " disabled";
+  let where = "이 브라우저에";
+  if (loginUser != null) where = safeText(loginUser.nickname) + "님 계정에";
+  if (!note) note = problem;
+  if (!note) note = "저장은 " + where + " 1개만 남아요. (전에 저장한 건 덮어써요)";
+
+  menuPanel.innerHTML = panelHead("☰ 메뉴") +
+    '<div class="game-menu">' +
+    '<button class="big-btn" onclick="closePanel()">▶ 계속하기</button>' +
+    '<button class="big-btn blue" onclick="saveGame(false)"' + off + '>💾 저장하기</button>' +
+    '<button class="big-btn blue" onclick="saveGame(true)"' + off + '>💾 저장하고 홈으로</button>' +
+    '<button id="quitBtn" class="big-btn gray" onclick="quitGame()">🏠 저장 안 하고 홈으로</button>' +
+    '</div>' +
+    '<p class="game-menu-note">' + note + '</p>';
+}
+
+async function saveGame(goHome) {
+  const problem = saveProblem();
+  if (problem != "") {
+    drawGamePanel(problem);
+    return;
+  }
+  const state = JSON.stringify({
+    mode: gameMode.key, players: players, turn: turn, round: round,
+    finishCount: finishCount, spinCount: spinCount, topStage: topStage,
+    checkpointPending: checkpointPending, miniPending: miniPending,
+    rankHistory: rankHistory, marketMult: marketMult, metPairs: metPairs, guardNews: guardNews,
+    log: logList.innerHTML
+  });
+  let names = [];
+  for (const p of players) names.push(p.name);
+  const title = (gameMode.name + " · " + (round + 1) + "턴 · " + names.join(", ")).slice(0, 60);
+
+  try {
+    if (loginUser != null) {
+      await callApi("POST", "/save", { title: title, mode: gameMode.key, round: round, players: players.length, state: state });
+    } else {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ title: title, saved_at: new Date().toLocaleString(), state: state }));
+    }
+  } catch (e) {
+    drawGamePanel("저장하지 못했어요 : " + e.message);
+    return;
+  }
+  sfx("coin");
+  if (goHome) goHomeFromGame();
+  else drawGamePanel("✅ 저장했어요!");
+}
+
+// 실수로 누르지 않게 두 번 눌러야 나가요
+function quitGame() {
+  const btn = document.getElementById("quitBtn");
+  if (btn.dataset.sure != "1") {
+    btn.dataset.sure = "1";
+    btn.textContent = "정말 나갈까요? 한 번 더 누르세요";
+    return;
+  }
+  goHomeFromGame();
+}
+
+// 게임 상태를 깨끗하게 비우려고 새로고침 (로그인 화면은 건너뛰고 타이틀로)
+function goHomeFromGame() {
+  sessionStorage.setItem("goTitle", "1");
+  location.reload();
+}
+
+async function getSave() {
+  if (loginUser != null) return await callApi("GET", "/save");
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved == null) return null;
+  return JSON.parse(saved);
+}
+
+function deleteSave() {
+  if (loginUser != null) callApi("POST", "/save/delete").catch(function () {});
+  else localStorage.removeItem(SAVE_KEY);
+}
+
+// 타이틀 화면 : 저장한 게임이 있으면 이어하기 버튼 보이기
+async function drawContinueButton() {
+  const btn = document.getElementById("continueBtn");
+  btn.classList.add("hidden");
+  try {
+    const save = await getSave();
+    if (save == null) return;
+    btn.innerHTML = "💾 이어하기<small>" + safeText(save.title) + " · " + safeText(save.saved_at) + "</small>";
+    btn.classList.remove("hidden");
+  } catch (e) {
+    // 서버가 꺼져 있으면 버튼 없이
+  }
+}
+
+async function loadGame() {
+  let save;
+  try {
+    save = await getSave();
+  } catch (e) {
+    return;
+  }
+  if (save == null) return;
+  const s = JSON.parse(save.state);
+
+  for (const m of modes) {
+    if (m.key == s.mode) gameMode = m;
+  }
+  players = s.players;
+  turn = s.turn;
+  round = s.round;
+  finishCount = s.finishCount;
+  spinCount = s.spinCount;
+  topStage = s.topStage;
+  checkpointPending = s.checkpointPending;
+  miniPending = s.miniPending;
+  rankHistory = s.rankHistory;
+  marketMult = s.marketMult;
+  metPairs = s.metPairs;
+  guardNews = s.guardNews;
+  logList.innerHTML = s.log;
+  loadedFromSave = true;
+
+  showScreen("gameScreen");
+  wheelImg.src = images.roulette;
+  drawMap();
+  createPieces();
+  busy = false;   // 저장은 내 차례 룰렛 전에만 하니까 바로 돌릴 수 있어요
+  updateScreen();
+  addLog("💾 이어하기 (" + (round + 1) + "턴)");
+  showBanner("💾 이어하기! " + players[turn].name + "의 차례", players[turn].color);
 }
 
 
@@ -2812,6 +2962,7 @@ function statusCard(p) {
 // ----- 게임 끝 -----
 function endGame() {
   busy = true;
+  if (loadedFromSave) deleteSave();   // 끝까지 한 게임은 이어하기에서 빼기
   playBgm("result");
   updateScreen();
   marketSettle(0);
