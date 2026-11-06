@@ -10,10 +10,10 @@ const images = {
   life: {}
 };
 for (const name of ["good", "bad", "normal", "event", "pay", "love", "work", "card", "lucky", "treasure", "shop", "fork", "start", "goal"]) {
-  images.tiles[name] = "assets/tiles/" + name + ".svg";
+  images.tiles[name] = "assets/tiles/" + name + ".png";
 }
 for (const name of ["talent", "kinder", "elem", "middle", "high", "exam", "college", "job", "marry", "house", "retire"]) {
-  images.life[name] = "assets/tiles/" + name + ".svg";
+  images.life[name] = "assets/tiles/" + name + ".png";
 }
 
 const characters = [
