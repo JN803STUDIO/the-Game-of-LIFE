@@ -210,10 +210,10 @@ button {
   cursor: default;
 }
 
-/* 입력칸 바로 아래 오른쪽 : 아이디 찾기 | 비밀번호 찾기 */
+/* 입력칸 바로 아래 가운데 : 아이디 찾기 | 비밀번호 찾기 */
 .find-links {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   gap: 4px;
   color: #ced4da;
@@ -257,9 +257,14 @@ button {
 
 /* 오류는 빨강, 성공은 초록 */
 .form-msg {
-  min-height: 20px;
+  margin: 6px 0;
   color: #e03131;
   font-size: 15px;
+}
+
+/* 문구가 없을 때는 자리 차지 안 하기 */
+.form-msg:empty {
+  display: none;
 }
 
 .form-msg.ok {
