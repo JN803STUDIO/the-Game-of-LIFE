@@ -150,7 +150,7 @@ def health():
 
 
 # ----- 회원가입 입력 검사 -----
-USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9가-힣]+$")                        # 영문 · 숫자 · 한글만
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9]+$")                               # 영문 · 숫자만
 EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
 
 
@@ -176,7 +176,7 @@ def check_register(data: RegisterIn):
     if not data.username:
         fail("아이디를 입력해 주세요.")
     if not USERNAME_PATTERN.match(data.username):
-        fail("아이디에는 특수문자나 띄어쓰기를 쓸 수 없어요. (영문, 숫자, 한글만)")
+        fail("아이디는 영문과 숫자만 쓸 수 있어요. (한글, 특수문자, 띄어쓰기 안 돼요)")
     if not 3 <= len(data.username) <= 30:
         fail("아이디는 3~30자로 만들어 주세요.")
 
