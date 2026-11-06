@@ -98,6 +98,21 @@ CREATE TABLE IF NOT EXISTS security_logs (
 );
 
 
+-- 관리 기록 (관리자가 한 일 : 비밀번호 변경 · 회원 삭제 · 기록 삭제 · 관리자 비밀번호 틀림)
+-- ※ 비밀번호 자체는 절대 남기지 않아요
+CREATE TABLE IF NOT EXISTS admin_logs (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  admin_id        INT NULL,
+  admin_username  VARCHAR(30) NOT NULL,
+  action          VARCHAR(30) NOT NULL,             -- 예) RESET_PASSWORD, DELETE_USER
+  target_username VARCHAR(30) NULL,                 -- 지운 회원도 이름은 남게 글자로 저장
+  detail          VARCHAR(255) NULL,
+  ip              VARCHAR(45) NULL,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_admin_logs_time (created_at),
+  FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- =====================================================
 -- 조회용 view (백엔드에서 SELECT 만 하면 돼요)
 -- =====================================================

@@ -411,6 +411,7 @@ function goTitle() {
 
 // ----- 관리자 화면 (회원 · 게임 기록 · 보안 로그) -----
 let adminTab = "users";
+let adminPwUser = null;   // 비밀번호를 바꿀 회원 { id, username }
 
 function openAdmin() {
   showScreen("adminScreen");
@@ -419,13 +420,14 @@ function openAdmin() {
 
 async function openAdminTab(tab) {
   adminTab = tab;
-  for (const t of ["users", "records", "logs"]) {
+  closeAdminPw();
+  for (const t of ["users", "records", "logs", "adminlogs"]) {
     document.getElementById("adminTab_" + t).classList.toggle("selected", t == tab);
   }
   setMsg("adminMsg", "");
   const body = document.getElementById("adminBody");
   body.innerHTML = "불러오는 중...";
-  const urls = { users: "/admin/users", records: "/admin/records", logs: "/admin/security-logs" };
+  const urls = { users: "/admin/users", records: "/admin/records", logs: "/admin/security-logs", adminlogs: "/admin/logs" };
   try {
     const rows = await callApi("GET", urls[tab]);
     if (rows.length == 0) {
@@ -433,7 +435,8 @@ async function openAdminTab(tab) {
       return;
     }
     if (tab == "users") body.innerHTML = adminTable(["번호", "아이디", "닉네임", "이메일", "가입일", "판 수", "저장", ""], rows, function (r) {
-      let del = { html: '<button class="small-btn save-del" onclick="adminDelete(\'users\', ' + r.id + ', this)">삭제</button>' };
+      let del = { html: '<button class="small-btn" onclick="openAdminPw(' + r.id + ', \'' + r.username + '\')">비번 변경</button> ' +
+                        '<button class="small-btn save-del" onclick="adminDelete(\'users\', ' + r.id + ', this)">삭제</button>' };
       if (r.id == loginUser.id) del = "(나)";
       return [r.id, r.username, r.nickname, r.email, r.created_at, r.plays, r.saves, del];
     });
@@ -441,8 +444,11 @@ async function openAdminTab(tab) {
       return [r.id, r.username, r.total_money + "만원", r.rank_pos + "/" + r.player_count, r.job, r.game_mode, r.created_at,
               { html: '<button class="small-btn save-del" onclick="adminDelete(\'records\', ' + r.id + ', this)">삭제</button>' }];
     });
-    else body.innerHTML = adminTable(["번호", "아이디", "종류", "위험도", "이유", "처리", "날짜"], rows, function (r) {
+    else if (tab == "logs") body.innerHTML = adminTable(["번호", "아이디", "종류", "위험도", "이유", "처리", "날짜"], rows, function (r) {
       return [r.id, r.username || "-", r.event_type, r.severity, r.reason, r.action_taken, r.created_at];
+    });
+    else body.innerHTML = adminTable(["번호", "관리자", "한 일", "대상", "내용", "IP", "날짜"], rows, function (r) {
+      return [r.id, r.admin_username, adminActionName(r.action), r.target_username || "-", r.detail || "", r.ip || "", r.created_at];
     });
   } catch (e) {
     body.innerHTML = "";
@@ -465,6 +471,51 @@ function adminTable(heads, rows, cells) {
     html += "</tr>";
   }
   return html + "</table>";
+}
+
+function adminActionName(action) {
+  const names = { RESET_PASSWORD: "🔑 비밀번호 변경", ADMIN_PW_FAIL: "⚠️ 관리자 비번 틀림",
+                  DELETE_USER: "🗑️ 회원 삭제", DELETE_RECORD: "🗑️ 기록 삭제" };
+  return names[action] || action;
+}
+
+// ----- 회원 비밀번호 바꾸기 (관리자 비밀번호 한 번 더) -----
+// 아이디는 영문 · 숫자만이라 onclick 글자에 그대로 넣어도 안전해요
+function openAdminPw(id, username) {
+  adminPwUser = { id: id, username: username };
+  document.getElementById("adminPwTarget").textContent = username;
+  for (const box of ["adminNewPw", "adminNewPw2", "adminMyPw"]) {
+    document.getElementById(box).value = "";
+  }
+  setMsg("adminPwMsg", "");
+  document.getElementById("adminPwBox").classList.remove("hidden");
+  document.getElementById("adminNewPw").focus();
+}
+
+function closeAdminPw() {
+  adminPwUser = null;
+  document.getElementById("adminPwBox").classList.add("hidden");
+}
+
+async function adminResetPassword() {
+  const pw = document.getElementById("adminNewPw").value;
+  if (pw != document.getElementById("adminNewPw2").value) {
+    setMsg("adminPwMsg", "새 비밀번호가 서로 달라요. 다시 확인해 주세요.");
+    return;
+  }
+  const myPw = document.getElementById("adminMyPw").value;
+  if (!myPw) {
+    setMsg("adminPwMsg", "관리자(내) 비밀번호를 한 번 더 입력해 주세요.");
+    return;
+  }
+  try {
+    await callApi("POST", "/admin/users/" + adminPwUser.id + "/password", { admin_password: myPw, new_password: pw });
+    const name = adminPwUser.username;
+    closeAdminPw();
+    setMsg("adminMsg", name + "의 비밀번호를 바꿨어요. (관리 기록에 남았어요)", true);
+  } catch (e) {
+    setMsg("adminPwMsg", e.message);
+  }
 }
 
 // 삭제는 두 번 눌러야

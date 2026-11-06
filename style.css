@@ -294,6 +294,11 @@ button {
   padding: 4px 10px 0;
 }
 
+#adminPwBox {
+  margin-bottom: 12px;
+  text-align: center;
+}
+
 .admin-panel {
   width: 960px;
   max-width: 100%;

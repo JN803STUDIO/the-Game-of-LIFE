@@ -236,6 +236,11 @@ class DeleteMeIn(BaseModel):
     password: str
 
 
+class AdminPasswordIn(BaseModel):
+    admin_password: str   # 관리자 본인 비밀번호 (한 번 더 확인)
+    new_password: str     # 회원에게 새로 정해 줄 비밀번호
+
+
 class SaveIn(BaseModel):
     game_uid: str = Field(min_length=1, max_length=32)   # 같은 게임이면 덮어쓰기
     title: str = Field(max_length=60)
@@ -689,7 +694,25 @@ def delete_save(save_id: int, authorization: str | None = Header(default=None)):
     return {"ok": True}
 
 
-# ----- 관리자 : 회원 · 게임 기록 · 보안 로그 -----
+# ----- 관리자 : 회원 · 게임 기록 · 보안 로그 · 관리 기록 -----
+def log_admin(db, admin: dict, action: str, request: Request, target: str | None = None, detail: str | None = None):
+    """관리자가 한 일 남기기 (비밀번호는 절대 넣지 않기)"""
+    with db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO admin_logs (admin_id, admin_username, action, target_username, detail, ip) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (admin["id"], admin["username"], action, target, detail, request.client.host),
+        )
+
+
+def find_username(db, user_id: int) -> str:
+    with db.cursor() as cur:
+        cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+    if row is None:
+        fail("회원을 찾을 수 없어요.", 404)
+    return row["username"]
+
 def dates_to_text(rows: list, *keys: str) -> list:
     for row in rows:
         for key in keys:
@@ -717,14 +740,39 @@ def admin_users(authorization: str | None = Header(default=None)):
 
 
 @app.post("/api/admin/users/{user_id}/delete")
-def admin_delete_user(user_id: int, authorization: str | None = Header(default=None)):
+def admin_delete_user(user_id: int, request: Request, authorization: str | None = Header(default=None)):
     admin = require_admin(authorization)
     if user_id == admin["id"]:
         fail("관리자 자신은 여기서 지울 수 없어요.")
     db = get_db()
     try:
+        target = find_username(db, user_id)
         with db.cursor() as cur:
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))   # 기록 · 저장 · 세션도 같이 지워져요
+        log_admin(db, admin, "DELETE_USER", request, target)
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.post("/api/admin/users/{user_id}/password")
+def admin_reset_password(user_id: int, data: AdminPasswordIn, request: Request,
+                         authorization: str | None = Header(default=None)):
+    """회원 비밀번호를 새로 정해 주기 (원래 비밀번호는 되돌릴 수 없게 저장돼서 볼 수는 없어요)"""
+    admin = require_admin(authorization)
+    db = get_db()
+    try:
+        target = find_username(db, user_id)
+        try:
+            load_user_with_password(db, admin["id"], data.admin_password)   # 관리자 비밀번호 한 번 더
+        except HTTPException:
+            log_admin(db, admin, "ADMIN_PW_FAIL", request, target, "비밀번호 변경 시도 중 관리자 비밀번호 틀림")
+            fail("관리자 비밀번호가 틀렸어요.", 401)
+        check_password(data.new_password, "새 비밀번호")
+        set_password(db, user_id, data.new_password)
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))   # 그 회원은 다시 로그인해야
+        log_admin(db, admin, "RESET_PASSWORD", request, target, "새 비밀번호로 변경, 로그인 끊음")
     finally:
         db.close()
     return {"ok": True}
@@ -748,15 +796,39 @@ def admin_records(authorization: str | None = Header(default=None)):
 
 
 @app.post("/api/admin/records/{record_id}/delete")
-def admin_delete_record(record_id: int, authorization: str | None = Header(default=None)):
+def admin_delete_record(record_id: int, request: Request, authorization: str | None = Header(default=None)):
+    admin = require_admin(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT u.username, r.total_money FROM records r JOIN users u ON u.id = r.user_id WHERE r.id = %s",
+                (record_id,),
+            )
+            row = cur.fetchone()
+            cur.execute("DELETE FROM records WHERE id = %s", (record_id,))
+        if row is not None:
+            log_admin(db, admin, "DELETE_RECORD", request, row["username"],
+                      f"기록 {record_id}번 ({row['total_money']}만원)")
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.get("/api/admin/logs")
+def admin_logs(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     db = get_db()
     try:
         with db.cursor() as cur:
-            cur.execute("DELETE FROM records WHERE id = %s", (record_id,))
+            cur.execute(
+                "SELECT id, admin_username, action, target_username, detail, ip, created_at "
+                "FROM admin_logs ORDER BY id DESC LIMIT 200"
+            )
+            rows = cur.fetchall()
     finally:
         db.close()
-    return {"ok": True}
+    return dates_to_text(rows, "created_at")
 
 
 @app.get("/api/admin/security-logs")

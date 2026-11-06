@@ -123,8 +123,29 @@
       <button id="adminTab_users" onclick="openAdminTab('users')">회원</button>
       <button id="adminTab_records" onclick="openAdminTab('records')">게임 기록</button>
       <button id="adminTab_logs" onclick="openAdminTab('logs')">보안 로그</button>
+      <button id="adminTab_adminlogs" onclick="openAdminTab('adminlogs')">관리 기록</button>
     </div>
     <p id="adminMsg" class="form-msg"></p>
+
+    <!-- 회원 비밀번호 바꾸기 (표에서 "비번 변경" 누르면 열림) -->
+    <div id="adminPwBox" class="login-box hidden">
+      <h3 class="box-title"><span id="adminPwTarget"></span> 비밀번호 바꾸기</h3>
+      <p class="box-help">원래 비밀번호는 되돌릴 수 없게 저장돼서 볼 수 없어요. 새 비밀번호를 정해 주세요.<br>바꾸면 그 회원은 다시 로그인해야 하고, 관리 기록에 남아요.</p>
+      <div class="pw-box">
+        <input type="password" id="adminNewPw" placeholder="새 비밀번호" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="adminNewPw2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="adminMyPw" placeholder="관리자(내) 비밀번호 한 번 더" maxlength="50">
+      </div>
+      <p id="adminPwMsg" class="form-msg"></p>
+      <div class="login-actions">
+        <button class="big-btn" onclick="adminResetPassword()">바꾸기</button>
+        <button class="text-btn" onclick="closeAdminPw()">취소</button>
+      </div>
+    </div>
     <div id="adminBody" class="panel admin-panel"></div>
     <button class="big-btn" onclick="goTitle()">돌아가기</button>
   </div>
