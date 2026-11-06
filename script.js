@@ -676,8 +676,11 @@ function closePanel() {
   document.activeElement.blur();   // 메뉴 버튼에 남은 선택 없애기 (스페이스바가 룰렛으로 가게)
 }
 
-function panelHead(title) {
-  return '<div class="panel-head">' + title + ' <button class="panel-close" onclick="closePanel()">✕</button></div>';
+// noClose : ✕ 버튼 없이 (☰ 메뉴는 "계속하기" 가 닫기 역할)
+function panelHead(title, noClose) {
+  let close = ' <button class="panel-close" onclick="closePanel()">✕</button>';
+  if (noClose) close = "";
+  return '<div class="panel-head">' + title + close + '</div>';
 }
 
 // 카드를 못 쓰는 이유 (쓸 수 있으면 빈 글자)
@@ -814,8 +817,9 @@ function drawEtcPanel() {
 
 
 // ----- 게임 메뉴 (저장 · 홈으로) -----
-const SAVE_KEY = "lifeGameSave";   // 게스트는 이 브라우저(localStorage)에 저장
-let loadedFromSave = false;        // 이어하기로 시작한 게임인지 (끝나면 저장 지우기)
+const SAVE_KEY = "lifeGameSaves";  // 게스트는 이 브라우저(localStorage)에 저장 목록
+const MAX_SAVES = 30;              // 저장은 최근 30개까지
+let loadedSaveId = null;           // 이어하기로 시작한 저장 번호 (끝까지 하면 그 저장 지우기)
 
 // 지금 저장하면 안 되는 이유 (괜찮으면 빈 글자)
 // 이동 중이거나 창이 떠 있을 때 저장하면 불러올 때 이어갈 수가 없어서, 내 차례 룰렛 전에만 저장해요
@@ -836,9 +840,9 @@ function drawGamePanel(note) {
   let where = "이 브라우저에";
   if (loginUser != null) where = safeText(loginUser.nickname) + "님 계정에";
   if (!note) note = problem;
-  if (!note) note = "저장은 " + where + " 1개만 남아요. (전에 저장한 건 덮어써요)";
+  if (!note) note = "저장할 때마다 " + where + " 하나씩 쌓여요. (최근 " + MAX_SAVES + "개까지)";
 
-  menuPanel.innerHTML = panelHead("☰ 메뉴") +
+  menuPanel.innerHTML = panelHead("☰ 메뉴", true) +
     '<div class="game-menu">' +
     '<button class="big-btn" onclick="closePanel()">▶ 계속하기</button>' +
     '<button class="big-btn blue" onclick="saveGame(false)"' + off + '>💾 저장하기</button>' +
@@ -867,9 +871,11 @@ async function saveGame(goHome) {
 
   try {
     if (loginUser != null) {
-      await callApi("POST", "/save", { title: title, mode: gameMode.key, round: round, players: players.length, state: state });
+      await callApi("POST", "/saves", { title: title, mode: gameMode.key, round: round, players: players.length, state: state });
     } else {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ title: title, saved_at: new Date().toLocaleString(), state: state }));
+      const list = localSaves();
+      list.unshift({ id: Date.now(), title: title, saved_at: nowText(), state: state });
+      localStorage.setItem(SAVE_KEY, JSON.stringify(list.slice(0, MAX_SAVES)));
     }
   } catch (e) {
     drawGamePanel("저장하지 못했어요 : " + e.message);
@@ -878,6 +884,13 @@ async function saveGame(goHome) {
   sfx("coin");
   if (goHome) goHomeFromGame();
   else drawGamePanel("✅ 저장했어요!");
+}
+
+// 예) 2026-11-06 12:05 (서버 목록과 같은 모양)
+function nowText() {
+  const d = new Date();
+  const two = function (n) { return String(n).padStart(2, "0"); };
+  return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()) + " " + two(d.getHours()) + ":" + two(d.getMinutes());
 }
 
 // 실수로 누르지 않게 두 번 눌러야 나가요
@@ -897,36 +910,78 @@ function goHomeFromGame() {
   location.reload();
 }
 
-async function getSave() {
-  if (loginUser != null) return await callApi("GET", "/save");
+// 게스트 저장 목록 (최근 것부터)
+function localSaves() {
   const saved = localStorage.getItem(SAVE_KEY);
-  if (saved == null) return null;
+  if (saved == null) return [];
   return JSON.parse(saved);
 }
 
-function deleteSave() {
-  if (loginUser != null) callApi("POST", "/save/delete").catch(function () {});
-  else localStorage.removeItem(SAVE_KEY);
+async function getSaveList() {
+  if (loginUser != null) return await callApi("GET", "/saves");
+  return localSaves();
 }
 
-// 타이틀 화면 : 저장한 게임이 있으면 이어하기 버튼 보이기
-async function drawContinueButton() {
-  const btn = document.getElementById("continueBtn");
-  btn.classList.add("hidden");
-  try {
-    const save = await getSave();
-    if (save == null) return;
-    btn.innerHTML = "💾 이어하기<small>" + safeText(save.title) + " · " + safeText(save.saved_at) + "</small>";
-    btn.classList.remove("hidden");
-  } catch (e) {
-    // 서버가 꺼져 있으면 버튼 없이
+async function getSave(id) {
+  if (loginUser != null) return await callApi("GET", "/saves/" + id);
+  for (const s of localSaves()) {
+    if (s.id == id) return s;
+  }
+  return null;
+}
+
+async function deleteSave(id) {
+  if (loginUser != null) {
+    await callApi("POST", "/saves/" + id + "/delete");
+  } else {
+    const list = [];
+    for (const s of localSaves()) {
+      if (s.id != id) list.push(s);
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(list));
   }
 }
 
-async function loadGame() {
+// 타이틀 화면 : 저장한 게임 목록 (많으면 스크롤)
+async function drawSaveList() {
+  const box = document.getElementById("saveBox");
+  let list = [];
+  try {
+    list = await getSaveList();
+  } catch (e) {
+    // 서버가 꺼져 있으면 목록 없이
+  }
+  box.classList.toggle("hidden", list.length == 0);
+  let html = "";
+  for (const s of list) {
+    html += '<div class="save-row">' +
+            '<div class="save-info"><b>' + safeText(s.title) + '</b><small>' + safeText(s.saved_at) + '</small></div>' +
+            '<button class="small-btn save-load" onclick="loadGame(' + s.id + ')">이어하기</button>' +
+            '<button class="small-btn save-del" onclick="removeSave(' + s.id + ', this)">삭제</button>' +
+            '</div>';
+  }
+  document.getElementById("saveList").innerHTML = html;
+}
+
+// 삭제도 두 번 눌러야
+async function removeSave(id, btn) {
+  if (btn.dataset.sure != "1") {
+    btn.dataset.sure = "1";
+    btn.textContent = "정말?";
+    return;
+  }
+  try {
+    await deleteSave(id);
+  } catch (e) {
+    // 이미 지워졌으면 목록만 다시
+  }
+  drawSaveList();
+}
+
+async function loadGame(id) {
   let save;
   try {
-    save = await getSave();
+    save = await getSave(id);
   } catch (e) {
     return;
   }
@@ -949,7 +1004,7 @@ async function loadGame() {
   metPairs = s.metPairs;
   guardNews = s.guardNews;
   logList.innerHTML = s.log;
-  loadedFromSave = true;
+  loadedSaveId = id;
 
   showScreen("gameScreen");
   wheelImg.src = images.roulette;
@@ -2962,7 +3017,7 @@ function statusCard(p) {
 // ----- 게임 끝 -----
 function endGame() {
   busy = true;
-  if (loadedFromSave) deleteSave();   // 끝까지 한 게임은 이어하기에서 빼기
+  if (loadedSaveId != null) deleteSave(loadedSaveId).catch(function () {});   // 끝까지 한 게임은 이어하기에서 빼기
   playBgm("result");
   updateScreen();
   marketSettle(0);

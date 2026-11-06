@@ -362,7 +362,7 @@ function drawUserBar() {
 // ----- 타이틀 화면으로 -----
 function goTitle() {
   drawUserBar();
-  drawContinueButton();
+  drawSaveList();
   if (loginUser != null) {
     setupNames[0] = loginUser.nickname; // 1P 이름 = 내 닉네임
     drawSetup();

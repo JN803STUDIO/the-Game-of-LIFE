@@ -65,20 +65,18 @@ CREATE TABLE IF NOT EXISTS records (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 이어하기
+-- 이어하기 (저장할 때마다 하나씩 쌓임, 한 사람당 최근 30개까지)
 CREATE TABLE IF NOT EXISTS game_saves (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   user_id       INT NOT NULL,
-  slot          TINYINT UNSIGNED NOT NULL DEFAULT 1,
   title         VARCHAR(60) NOT NULL,
   game_mode     ENUM('full','junior','adult') NOT NULL DEFAULT 'full',
   round_no      INT NOT NULL DEFAULT 0,
   player_count  TINYINT UNSIGNED NOT NULL,
   state_version SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   state         LONGTEXT NOT NULL,
-  saved_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_save_slot (user_id, slot),
-  CHECK (slot BETWEEN 1 AND 3),
+  saved_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_saves_user (user_id, saved_at),
   CHECK (player_count BETWEEN 1 AND 4),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

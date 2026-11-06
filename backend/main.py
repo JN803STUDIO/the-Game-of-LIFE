@@ -566,52 +566,75 @@ def delete_me(data: DeleteMeIn, authorization: str | None = Header(default=None)
     return {"ok": True}
 
 
-# ----- 이어하기 (게임 저장, 한 사람당 1개 = 1번 슬롯) -----
-@app.get("/api/save")
-def load_save(authorization: str | None = Header(default=None)):
+# ----- 이어하기 (저장할 때마다 쌓이고, 한 사람당 최근 MAX_SAVES 개까지) -----
+MAX_SAVES = 30
+
+
+@app.get("/api/saves")
+def list_saves(authorization: str | None = Header(default=None)):
+    """저장 목록 (게임 내용 state 는 빼고, 최근 것부터)"""
     user = get_current_user(authorization)
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute(
-                "SELECT title, game_mode, round_no, player_count, state, saved_at FROM game_saves "
-                "WHERE user_id = %s AND slot = 1",
+                "SELECT id, title, game_mode, round_no, player_count, saved_at FROM game_saves "
+                "WHERE user_id = %s ORDER BY saved_at DESC, id DESC",
                 (user["id"],),
             )
+            rows = cur.fetchall()
+    finally:
+        db.close()
+    for row in rows:
+        row["saved_at"] = row["saved_at"].strftime("%Y-%m-%d %H:%M")
+    return rows
+
+
+@app.get("/api/saves/{save_id}")
+def load_save(save_id: int, authorization: str | None = Header(default=None)):
+    user = get_current_user(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT id, title, state FROM game_saves WHERE id = %s AND user_id = %s", (save_id, user["id"]))
             row = cur.fetchone()
     finally:
         db.close()
     if row is None:
-        return None
-    row["saved_at"] = str(row["saved_at"])
+        fail("저장한 게임을 찾을 수 없어요.", 404)
     return row
 
 
-@app.post("/api/save")
+@app.post("/api/saves")
 def write_save(data: SaveIn, authorization: str | None = Header(default=None)):
     user = get_current_user(authorization)
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute(
-                "INSERT INTO game_saves (user_id, slot, title, game_mode, round_no, player_count, state) "
-                "VALUES (%s, 1, %s, %s, %s, %s, %s) "
-                "ON DUPLICATE KEY UPDATE title = VALUES(title), game_mode = VALUES(game_mode), "
-                "round_no = VALUES(round_no), player_count = VALUES(player_count), state = VALUES(state)",
+                "INSERT INTO game_saves (user_id, title, game_mode, round_no, player_count, state) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
                 (user["id"], data.title, data.mode, data.round, data.players, data.state),
+            )
+            save_id = cur.lastrowid
+            # 너무 많이 쌓이면 오래된 것부터 지우기
+            cur.execute(
+                "DELETE FROM game_saves WHERE user_id = %s AND id NOT IN ("
+                "SELECT id FROM (SELECT id FROM game_saves WHERE user_id = %s ORDER BY saved_at DESC, id DESC LIMIT %s) AS keep)",
+                (user["id"], user["id"], MAX_SAVES),
             )
     finally:
         db.close()
-    return {"ok": True}
+    return {"id": save_id}
 
 
-@app.post("/api/save/delete")
-def delete_save(authorization: str | None = Header(default=None)):
+@app.post("/api/saves/{save_id}/delete")
+def delete_save(save_id: int, authorization: str | None = Header(default=None)):
     user = get_current_user(authorization)
     db = get_db()
     try:
         with db.cursor() as cur:
-            cur.execute("DELETE FROM game_saves WHERE user_id = %s AND slot = 1", (user["id"],))
+            cur.execute("DELETE FROM game_saves WHERE id = %s AND user_id = %s", (save_id, user["id"]))
     finally:
         db.close()
     return {"ok": True}

@@ -119,9 +119,13 @@
     <img id="logoImg" class="logo" alt="인생게임">
     <p class="subtitle">아기부터 노년까지, 당신의 인생은 어떻게 될까요?</p>
     <div id="titleChars"></div>
-    <button id="continueBtn" class="big-btn green hidden" onclick="loadGame()"></button>
     <button class="big-btn" onclick="showScreen('setupScreen')">게임 시작</button>
     <button class="big-btn blue" onclick="openRanking()">🏆 랭킹</button>
+    <!-- 저장한 게임 목록 (많으면 스크롤) -->
+    <div id="saveBox" class="save-box hidden">
+      <h3>💾 이어하기</h3>
+      <div id="saveList"></div>
+    </div>
   </div>
 
   <!-- ========== 2. 플레이어 설정 화면 ========== -->

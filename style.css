@@ -288,16 +288,68 @@ button {
   font-size: 17px;
 }
 
-/* 타이틀 : 이어하기 */
-.big-btn.green {
-  background: #51cf66;
-  border-bottom-color: #2b8a3e;
+/* 타이틀 : 이어하기 목록 (많으면 스크롤) */
+.save-box {
+  width: 560px;
+  max-width: 100%;
+  margin: 16px auto 0;
+  padding: 12px 14px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.12);
+  text-align: left;
 }
 
-#continueBtn small {
+.save-box h3 {
+  margin: 0 0 8px;
+  color: #2b8a3e;
+}
+
+#saveList {
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-top: 2px solid #f1f3f5;
+}
+
+.save-row:first-child {
+  border-top: none;
+}
+
+.save-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-info b {
   display: block;
-  font-size: 14px;
-  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-info small {
+  color: #868e96;
+}
+
+.save-row .small-btn {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.save-load {
+  border-color: #51cf66 !important;
+  color: #2b8a3e;
+}
+
+.save-del {
+  color: #868e96;
 }
 
 /* 게임 중 ☰ 메뉴 창 */
