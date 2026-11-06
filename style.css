@@ -167,8 +167,23 @@ button {
   transform: translateY(-50%);
   border: none;
   background: none;
-  font-size: 20px;
   padding: 4px;
+  line-height: 0;
+}
+
+.eye-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #adb5bd;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 숨김 상태(기본)는 빗금 있는 눈, 보일 때는 빗금 없는 눈 */
+.eye-btn.shown .eye-slash {
+  display: none;
 }
 
 #loginMsg {

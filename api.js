@@ -104,7 +104,7 @@ function togglePw(id, btn) {
   const box = document.getElementById(id);
   const show = box.type == "password";
   box.type = show ? "text" : "password";
-  btn.textContent = show ? "🙈" : "👁️";
+  btn.classList.toggle("shown", show);   // 보일 때는 빗금 없는 눈
   btn.setAttribute("aria-label", show ? "비밀번호 숨기기" : "비밀번호 보기");
 }
 
