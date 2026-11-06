@@ -2484,7 +2484,7 @@ const minigames = [
   { name: "🍀 행운의 상자", desc: "상자 5개 중 하나를 고르세요! (0 ~ 100점)", play: playBox, stat: "sense", cpu: cpuBox },
   { name: "🎡 룰렛 대결", desc: "숫자 룰렛을 돌려서 가장 큰 숫자가 나온 사람이 1등!", play: playSpin, stat: "int", cpu: cpuSpin, max: 10 },
   { name: "⏱️ 5초 맞추기", desc: "시작을 누르고 마음속으로 5초를 센 뒤 멈추세요! (가까울수록 높은 점수)", play: playStopwatch, stat: "sense", cpu: cpuStopwatch },
-  { name: "🧮 암산 대결", desc: "덧셈 5문제! 맞힌 개수만큼 점수를 받아요.", play: playMath, stat: "int", cpu: cpuMath },
+  { name: "🧮 암산 대결", desc: "덧셈 1문제! 스톱워치가 돌아가요. 빨리 맞힐수록 점수가 높아요. (틀리면 0점)", play: playMath, stat: "int", cpu: cpuMath },
   { name: "🃏 업다운", desc: "다음 숫자가 더 클까요, 작을까요? 5번 맞혀 보세요!", play: playUpDown, stat: "sense", cpu: cpuUpDown },
   { name: "🍎 순서 기억", desc: "과일 4개가 딱 1초 나와요! 순서를 기억했다가 똑같이 누르세요!", play: playMemory, stat: "int", cpu: cpuMemory },
   { name: "✊ 가위바위보", desc: "컴퓨터와 가위바위보 3판! 이기면 30점, 비기면 10점", play: playRps, stat: "str", cpu: cpuRps },
@@ -2699,32 +2699,43 @@ function stopwatchShow() {
   else document.getElementById("watch").textContent = "?";
 }
 
-// 5. 암산 (5문제, 1문제 20점)
+// 5. 암산 (1문제, 스톱워치 : 빨리 맞힐수록 높은 점수, 틀리면 0점)
 function playMath() {
-  mini.count = 0;
-  mini.correct = 0;
-  mathQuestion();
-}
-
-function mathQuestion() {
-  if (mini.count == 5) {
-    miniDone(miniPlayer(), mini.correct * 20);
-    return;
-  }
-  mini.count++;
   const a = randomInt(10, 49);
   const b = randomInt(10, 49);
   mini.answer = a + b;
-  let html = "<b>" + mini.count + "번.</b> " + a + " + " + b + " = ?<br>";
+  let html = '<div class="big-num" id="mathWatch">0.0초</div>' + a + " + " + b + " = ?<br>";
   for (const n of pickSome([a + b, a + b + 10, a + b - 1], 3)) {
-    html += '<button class="big-btn choice" onclick="mathAnswer(' + n + ')">' + n + '</button>';
+    html += '<button class="big-btn choice math-choice" onclick="mathAnswer(' + n + ')">' + n + '</button>';
   }
-  showMini("🧮 암산 대결 (" + mini.correct + "개 맞힘)", html);
+  showMini("🧮 암산 대결", html);
+  mini.start = Date.now();
+  mini.timer = setInterval(mathWatchShow, 50);
+}
+
+function mathWatchShow() {
+  const watch = document.getElementById("mathWatch");
+  if (watch == null) {   // 미니게임 창이 바뀌었으면 멈추기
+    clearInterval(mini.timer);
+    return;
+  }
+  watch.textContent = ((Date.now() - mini.start) / 1000).toFixed(1) + "초";
 }
 
 function mathAnswer(n) {
-  if (n == mini.answer) mini.correct++;
-  mathQuestion();
+  clearInterval(mini.timer);
+  const sec = (Date.now() - mini.start) / 1000;
+  for (const btn of document.querySelectorAll(".math-choice")) {
+    btn.disabled = true;
+  }
+  let score = 0;
+  let text = "❌ 틀렸어요! 정답은 " + mini.answer;
+  if (n == mini.answer) {
+    score = mathScore(sec);
+    text = "⭕ 정답! " + sec.toFixed(2) + "초";
+  }
+  document.getElementById("mathWatch").textContent = text;
+  setTimeout(function () { miniDone(miniPlayer(), score); }, 1200);
 }
 
 // 6. 업다운 (5번, 1번 20점)
@@ -2858,6 +2869,11 @@ function stopwatchScore(sec) {
   return Math.max(0, Math.round(100 - Math.abs(sec - 5) * 50));
 }
 
+// 암산 : 2초 안이면 100점, 1초 늦을 때마다 -10점 (맞히면 최소 10점)
+function mathScore(sec) {
+  return Math.max(10, Math.min(100, Math.round(100 - (sec - 2) * 10)));
+}
+
 function numbersScore(sec) {
   return Math.max(0, Math.min(100, Math.round(100 - (sec - 3) * 10)));
 }
@@ -2896,11 +2912,8 @@ function cpuStopwatch() {
 }
 
 function cpuMath() {
-  let score = 0;
-  for (let i = 0; i < 5; i++) {
-    if (Math.random() < 0.8) score += 20;   // 한 문제 맞힐 확률 80%
-  }
-  return score;
+  if (Math.random() >= 0.8) return 0;              // 맞힐 확률 80%
+  return mathScore(randomInt(25, 80) / 10);        // 2.5~8초 걸림
 }
 
 function cpuUpDown() {
