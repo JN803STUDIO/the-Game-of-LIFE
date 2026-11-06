@@ -244,7 +244,7 @@ function floatText(p, text) {
 
 // ----- 화면 전환 -----
 function showScreen(id) {
-  for (const s of ["loginScreen", "accountScreen", "adminScreen", "titleScreen", "setupScreen", "gameScreen", "resultScreen", "rankingScreen"]) {
+  for (const s of ["loginScreen", "accountScreen", "adminScreen", "roomScreen", "lobbyScreen", "titleScreen", "setupScreen", "gameScreen", "resultScreen", "rankingScreen"]) {
     document.getElementById(s).classList.add("hidden");
   }
   document.getElementById(id).classList.remove("hidden");
@@ -2635,13 +2635,19 @@ function playTiming() {
   mini.speed = 2;
   showMini("🎯 타이밍 대결", '<div class="timing-track"><div class="timing-target"></div><div class="timing-bar" id="timingBar"></div></div>' +
     '<button class="big-btn" onclick="timingStop()">멈춰!</button>');
+  clearInterval(mini.timer);   // 두 번 눌려도 타이머가 하나만 돌게
   mini.timer = setInterval(timingMove, 16);
 }
 
 function timingMove() {
+  const bar = document.getElementById("timingBar");
+  if (mini == null || bar == null) {   // 미니게임 창이 바뀌었으면 멈추기
+    if (mini != null) clearInterval(mini.timer);
+    return;
+  }
   mini.pos += mini.speed;
   if (mini.pos >= 100 || mini.pos <= 0) mini.speed = -mini.speed;
-  document.getElementById("timingBar").style.left = mini.pos + "%";
+  bar.style.left = mini.pos + "%";
 }
 
 function timingStop() {
@@ -3039,6 +3045,14 @@ function statusCard(p) {
 
 
 // ----- 게임 끝 -----
+// 서버에 저장할 한 사람의 게임 기록
+function recordOf(p, ranked) {
+  return {
+    total: p.total, rank: ranked.indexOf(p) + 1, players: players.length, job: jobTitle(p),
+    mode: gameMode.key, rounds: round, talent: p.talent, married: p.spouse != null, kids: p.kids.length
+  };
+}
+
 function endGame() {
   busy = true;
   if (saveId != null) deleteSave(saveId).catch(function () {});   // 끝까지 한 게임은 이어하기에서 빼기
@@ -3172,11 +3186,9 @@ function showResult() {
   document.getElementById("ranking").innerHTML = html;
   showScreen("resultScreen");
 
-  // 로그인했으면 기록 저장 (api.js)
-  saveRecord({
-    total: players[0].total, rank: ranked.indexOf(players[0]) + 1, players: players.length, job: jobTitle(players[0]),
-    mode: gameMode.key, rounds: round, talent: players[0].talent, married: players[0].spouse != null, kids: players[0].kids.length
-  });
+  // 로그인했으면 기록 저장 (api.js), 온라인이면 다른 사람 기록은 각자에게 보내기 (net.js)
+  saveRecord(recordOf(players[0], ranked));
+  netSendRecords(ranked);
 }
 
 

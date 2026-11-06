@@ -21,7 +21,7 @@ import dns.exception
 import dns.resolver
 import pymysql
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -932,6 +932,152 @@ def my_records(authorization: str | None = Header(default=None)):
     for row in rows:
         row["created_at"] = str(row["created_at"])
     return rows
+
+
+# =====================================================
+# 온라인 방 (WebSocket : 서버와 계속 연결된 채로 메시지를 주고받는 통로)
+#
+# 방장 컴퓨터가 게임을 진행하고, 서버는 메시지를 전달만 해요.
+#   방장 → 다른 사람 : 화면에서 바뀐 부분(full / patch), 소리(sfx / bgm), 카메라(cam)
+#   다른 사람 → 방장 : 누른 버튼 위치(action)
+# 방은 서버 메모리에만 있어서 서버를 다시 켜면 사라져요.
+# =====================================================
+ROOM_MAX = 4          # 한 방 최대 인원
+ROOM_LIMIT = 200      # 서버 전체 방 개수 제한
+NAME_MAX = 6          # 이름 글자 수 (설정 화면과 같게)
+rooms: dict[str, dict] = {}   # 방 코드 → 방
+
+
+def new_room_code() -> str:
+    while True:
+        code = str(secrets.randbelow(9000) + 1000)   # 1000 ~ 9999
+        if code not in rooms:
+            return code
+
+
+def clean_member(data, fallback: str) -> dict:
+    """대기실에서 보낸 내 정보 다듬기 (이상한 값은 기본값으로)"""
+    if not isinstance(data, dict):
+        data = {}
+    name = str(data.get("name", "")).strip()[:NAME_MAX] or fallback
+    gender = "F" if data.get("gender") == "F" else "M"
+    char = data.get("char")
+    if not isinstance(char, int) or not 0 <= char <= 3:
+        char = 0
+    return {"name": name, "gender": gender, "char": char}
+
+
+def lobby_state(room: dict) -> dict:
+    return {"type": "lobby", "code": room["code"], "host": room["host"], "mode": room["mode"], "members": room["members"]}
+
+
+async def room_send(ws: WebSocket, msg: dict):
+    try:
+        await ws.send_json(msg)
+    except Exception:
+        pass   # 이미 끊긴 사람은 무시
+
+
+async def room_broadcast(room: dict, msg: dict, skip: str | None = None):
+    for cid, ws in list(room["clients"].items()):
+        if cid != skip:
+            await room_send(ws, msg)
+
+
+@app.websocket("/ws/room")
+async def room_socket(ws: WebSocket):
+    await ws.accept()
+    cid = secrets.token_hex(4)   # 이 연결의 번호
+    room = None
+    try:
+        first = await ws.receive_json()
+        kind = first.get("type") if isinstance(first, dict) else None
+
+        if kind == "create":
+            if len(rooms) >= ROOM_LIMIT:
+                await room_send(ws, {"type": "error", "text": "지금은 방이 너무 많아요. 잠시 후 다시 해 주세요."})
+                return
+            code = new_room_code()
+            room = {"code": code, "host": cid, "clients": {}, "members": [], "mode": 0, "started": False}
+            rooms[code] = room
+        elif kind == "join":
+            room = rooms.get(str(first.get("code", "")))
+            error = None
+            if room is None:
+                error = "없는 방 코드예요. 다시 확인해 주세요."
+            elif room["started"]:
+                error = "이미 게임을 시작한 방이에요."
+            elif len(room["members"]) >= ROOM_MAX:
+                error = "방이 꽉 찼어요. (최대 4명)"
+            if error:
+                room = None
+                await room_send(ws, {"type": "error", "text": error})
+                return
+        else:
+            return
+
+        room["clients"][cid] = ws
+        room["members"].append({"cid": cid, **clean_member(first.get("me"), "플레이어" + str(len(room["members"]) + 1))})
+        await room_send(ws, {"type": "welcome", "you": cid})
+        await room_broadcast(room, lobby_state(room))
+
+        while True:
+            msg = await ws.receive_json()
+            if not isinstance(msg, dict):
+                continue
+            kind = msg.get("type")
+            is_host = cid == room["host"]
+
+            if not room["started"]:
+                # ----- 대기실 -----
+                if kind == "me":
+                    for m in room["members"]:
+                        if m["cid"] == cid:
+                            m.update(clean_member(msg, m["name"]))
+                    await room_broadcast(room, lobby_state(room))
+                elif kind == "mode" and is_host and msg.get("mode") in (0, 1, 2):
+                    room["mode"] = msg["mode"]
+                    await room_broadcast(room, lobby_state(room))
+                elif kind == "start" and is_host:
+                    if len(room["members"]) < 2:
+                        await room_send(ws, {"type": "error", "text": "2명 이상 모여야 시작할 수 있어요."})
+                        continue
+                    room["started"] = True
+                    await room_broadcast(room, {"type": "start", "members": room["members"], "mode": room["mode"]})
+            elif is_host:
+                # ----- 게임 중 : 방장 → 모두 / 한 사람 -----
+                if kind in ("full", "patch", "sfx", "bgm", "cam", "toast"):
+                    await room_broadcast(room, msg, skip=cid)
+                elif kind == "to" and msg.get("cid") in room["clients"] and isinstance(msg.get("msg"), dict):
+                    await room_send(room["clients"][msg["cid"]], msg["msg"])
+            elif kind == "action" and isinstance(msg.get("path"), list) and len(msg["path"]) <= 60:
+                # ----- 게임 중 : 다른 사람이 누른 버튼 → 방장 -----
+                host_ws = room["clients"].get(room["host"])
+                if host_ws is not None:
+                    await room_send(host_ws, {"type": "action", "from": cid, "path": msg["path"]})
+    except Exception:
+        pass   # 연결이 끊기거나 이상한 메시지면 정리하러 감
+    finally:
+        if room is not None and cid in room["clients"]:
+            del room["clients"][cid]
+            if cid == room["host"]:
+                # 방장이 나가면 방을 닫아요
+                await room_broadcast(room, {"type": "closed", "text": "방장이 나가서 방이 닫혔어요."})
+                for other in list(room["clients"].values()):
+                    try:
+                        await other.close()
+                    except Exception:
+                        pass
+                rooms.pop(room["code"], None)
+            elif not room["started"]:
+                room["members"] = [m for m in room["members"] if m["cid"] != cid]
+                await room_broadcast(room, lobby_state(room))
+            else:
+                host_ws = room["clients"].get(room["host"])
+                if host_ws is not None:
+                    await room_send(host_ws, {"type": "left", "cid": cid})
+            if not room["clients"]:
+                rooms.pop(room["code"], None)
 
 
 # =====================================================

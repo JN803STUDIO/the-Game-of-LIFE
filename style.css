@@ -279,6 +279,306 @@ button {
   font-size: 17px;
 }
 
+/* 온라인 대전 */
+.big-btn.green {
+  background: #51cf66;
+  border-bottom-color: #2b8a3e;
+}
+
+/* ----- 방 만들기 · 대기실 : 팀원(pront 브랜치) css 그대로, .room-ui 안에서만 ----- */
+.room-ui .card {
+  margin: 0 auto;
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  color: #1f2a44;
+}
+
+.room-ui .card * {
+  box-sizing: border-box;
+}
+
+/* ---------- 2. 카드 (화면 가운데 하얀 상자) ---------- */
+
+.room-ui .card {
+  width: 100%;
+  max-width: 440px;             /* 컴퓨터 화면에서도 너무 넓어지지 않게 */
+  padding: 32px 28px;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(31, 42, 68, 0.1);
+  text-align: center;
+}
+
+.room-ui .title {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.room-ui .subtitle {
+  margin: 4px 0 28px;
+  color: #55627d;
+  letter-spacing: 0.05em;
+}
+
+.room-ui .section {
+  margin-bottom: 24px;
+}
+
+.room-ui .section h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.room-ui .hint {
+  margin: 0 0 14px;
+  color: #55627d;
+  font-size: 0.9rem;
+}
+
+/* 방 만들기 / 방 참가하기 사이의 가로줄 */
+.room-ui .divider {
+  margin: 28px 0;
+  border: none;
+  border-top: 1px solid #dde3f0;
+}
+
+
+/* ---------- 3. 큰 버튼 (방 만들기, 참가하기, 게임 시작) ---------- */
+
+.room-ui .btn {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;         /* 버튼도 위에서 정한 글꼴을 쓰도록 */
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 진한 파란색 버튼 */
+.room-ui .btn-primary {
+  background: #3b5bdb;
+  color: #ffffff;
+}
+.room-ui .btn-primary:hover {
+  background: #2f4ac0;          /* 마우스를 올리면 조금 더 진하게 */
+}
+
+/* 연한 파란색 버튼 */
+.room-ui .btn-secondary {
+  background: #e7ecff;
+  color: #2f4ac0;
+}
+.room-ui .btn-secondary:hover {
+  background: #d6dfff;
+}
+
+
+/* ---------- 4. 방 코드 입력창 (index.html) ---------- */
+
+.room-ui .code-input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 14px 12px;
+  border: 2px solid #ccd5ea;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 1.6rem;
+  text-align: center;
+  letter-spacing: 0.5em;        /* 숫자 사이를 넓게 */
+  text-indent: 0.5em;           /* letter-spacing 때문에 쏠린 글자를 가운데로 */
+}
+
+
+/* ---------- 5. 방 코드 표시 (lobby.html) ---------- */
+
+.room-ui .back-link {
+  display: block;
+  margin-bottom: 12px;
+  color: #55627d;
+  font-size: 0.9rem;
+  text-align: left;
+  text-decoration: none;
+}
+.room-ui .back-link:hover {
+  text-decoration: underline;
+}
+
+.room-ui .room-code-box {
+  margin: 16px 0 24px;
+  padding: 18px 12px;
+  background: #eef2ff;
+  border-radius: 16px;
+}
+
+.room-ui .room-code-label {
+  margin: 0;
+  color: #4c5c82;
+  font-weight: 700;
+}
+
+.room-ui .room-code {
+  margin: 4px 0 0;
+  color: #3b5bdb;
+  font-size: 3.5rem;            /* 아주 크게! */
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-indent: 0.15em;
+}
+
+
+/* ---------- 6. 선택 결과 미리보기 (lobby.html) ---------- */
+
+/* 이모지가 잘 보이도록 이모지 글꼴을 지정해요 */
+.room-ui .preview-emoji,
+.room-ui .choice-emoji {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+}
+
+.room-ui .preview-emoji {
+  display: flex;                /* 이모지를 동그라미 안 가운데에 놓기 */
+  justify-content: center;
+  align-items: center;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 12px;
+  background: #fff4d6;
+  border-radius: 50%;           /* 동그랗게 */
+  font-size: 5rem;
+}
+
+.room-ui .preview-text {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+
+/* ---------- 7. 성별 / 캐릭터 선택 버튼 (lobby.html) ---------- */
+
+/* 버튼들을 격자(grid)로 나란히 놓아요 */
+.room-ui .choice-row {
+  display: grid;
+  gap: 8px;
+}
+.room-ui .gender-row {
+  grid-template-columns: repeat(2, 1fr);   /* 2칸 */
+}
+.room-ui .character-row {
+  grid-template-columns: repeat(4, 1fr);   /* 4칸 */
+}
+
+.room-ui .choice-btn {
+  display: flex;
+  flex-direction: column;       /* 이모지 위, 이름 아래 */
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 4px;
+  background: #ffffff;
+  border: 2px solid #d5dcee;
+  border-radius: 12px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.room-ui .choice-btn:hover {
+  border-color: #9db0f5;
+}
+
+/* 선택된 버튼 : script.js가 selected 라는 이름표(class)를 붙여 줘요 */
+.room-ui .choice-btn.selected {
+  background: #eef2ff;
+  border-color: #3b5bdb;
+  font-weight: 700;
+}
+
+.room-ui .choice-emoji {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.room-ui .start-btn {
+  margin-top: 8px;
+}
+
+
+/* ---------- 8. 작은 화면(휴대폰)용 ---------- */
+
+@media (max-width: 400px) {
+.room-ui .card {
+    padding: 24px 16px;
+  }
+.room-ui .room-code {
+    font-size: 3rem;
+  }
+}
+
+/* 추가 : 우리 캐릭터 그림, 이름 칸, 들어온 사람, 모드 */
+.room-ui .choice-emoji img {
+  width: 44px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.room-ui .preview-emoji img {
+  width: 96px;
+  height: 104px;
+  object-fit: contain;
+}
+
+.room-ui .name-input {
+  margin: 12px 0 0;
+  font-size: 1.1rem;
+  letter-spacing: normal;
+  text-indent: 0;
+}
+
+.room-ui .mode-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.room-ui .choice-btn:disabled {
+  cursor: default;
+}
+
+.room-ui .member.empty {
+  color: #adb5bd;
+}
+
+#netBar {
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 4px 14px;
+  background: rgba(33, 37, 41, 0.85);
+  color: white;
+  border-radius: 20px;
+  font-size: 15px;
+}
+
+#netBar .small-btn {
+  margin: 0 0 0 6px;
+  padding: 2px 10px;
+}
+
+#netToast {
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 10px 20px;
+  background: rgba(33, 37, 41, 0.9);
+  color: white;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
 /* 관리자 화면 */
 .admin-btn {
   border-color: #845ef7 !important;
@@ -2006,4 +2306,19 @@ button {
 button:focus-visible {
   outline: 4px solid #845ef7;
   outline-offset: 2px;
+}
+
+/* 대기실 성별 버튼 : 게임 설정 화면 .gender-btn 스타일 덮어쓰기 (팀원 디자인대로) */
+.room-ui .gender-row .gender-btn {
+  display: flex;
+  width: auto;
+  margin: 0;
+  padding: 10px 4px;
+  background: #ffffff;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.room-ui .gender-row .gender-btn.selected {
+  background: #eef2ff;
 }
