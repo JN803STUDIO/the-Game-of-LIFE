@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인생게임 - 대기실</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<!-- body의 id는 script.js가 "지금 어느 페이지인지" 알아내는 데 사용해요 -->
+<body id="lobbyPage">
+
+  <main class="card">
+    <a class="back-link" href="index.html">← 처음으로</a>
+    <h1 class="title">대기실</h1>
+
+    <!-- ① 방 코드 (맨 위에 크게 보여줘요) -->
+    <section class="room-code-box">
+      <p class="room-code-label">방 코드</p>
+      <!-- 처음에는 ----로 두고, script.js가 진짜 방 코드로 바꿔 줘요 -->
+      <p id="roomCodeText" class="room-code">----</p>
+    </section>
+
+    <!-- ② 선택 결과 미리보기 (화면 중앙) -->
+    <section class="section">
+      <h2>내 캐릭터</h2>
+      <div id="previewEmoji" class="preview-emoji" aria-hidden="true"></div>
+      <!-- aria-live: 글자가 바뀌면 화면 읽기 프로그램이 읽어 줘요 -->
+      <p id="previewText" class="preview-text" aria-live="polite"></p>
+    </section>
+
+    <!-- ③ 성별 선택 : data-gender 값은 script.js의 이름(male / female)과 같아야 해요 -->
+    <section class="section">
+      <h2>성별 선택</h2>
+      <div class="choice-row gender-row">
+        <button class="choice-btn gender-btn" type="button" data-gender="male">남자</button>
+        <button class="choice-btn gender-btn" type="button" data-gender="female">여자</button>
+      </div>
+    </section>
+
+    <!--
+      ④ 캐릭터 선택
+      - data-character 값은 script.js의 CHARACTERS 이름표(baby, child ...)와 같아야 해요.
+      - 이모지와 이름은 비워 두면 script.js가 채워 줘요. (성별에 따라 이모지가 바뀌어요)
+    -->
+    <section class="section">
+      <h2>캐릭터 선택</h2>
+      <div class="choice-row character-row">
+        <button class="choice-btn character-btn" type="button" data-character="baby">
+          <span class="choice-emoji" aria-hidden="true"></span>
+          <span class="choice-name"></span>
+        </button>
+        <button class="choice-btn character-btn" type="button" data-character="child">
+          <span class="choice-emoji" aria-hidden="true"></span>
+          <span class="choice-name"></span>
+        </button>
+        <button class="choice-btn character-btn" type="button" data-character="adult">
+          <span class="choice-emoji" aria-hidden="true"></span>
+          <span class="choice-name"></span>
+        </button>
+        <button class="choice-btn character-btn" type="button" data-character="senior">
+          <span class="choice-emoji" aria-hidden="true"></span>
+          <span class="choice-name"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ⑤ 게임 시작 -->
+    <button id="startGameBtn" class="btn btn-primary start-btn" type="button">게임 시작</button>
+  </main>
+
+  <!-- 화면(HTML)이 모두 만들어진 "다음에" 실행되도록 script는 맨 아래에 둬요 -->
+  <script src="script.js"></script>
+</body>
+</html>
