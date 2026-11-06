@@ -210,14 +210,34 @@ button {
   cursor: default;
 }
 
+/* 입력칸 바로 아래 오른쪽 : 아이디 찾기 | 비밀번호 찾기 */
 .find-links {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
   color: #ced4da;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .find-links .text-btn {
+  margin-top: 0;
+  padding: 2px 0;
   color: #868e96;
-  font-size: 15px;
+  font-size: 14px;
+}
+
+/* 로그인 버튼 + 오른쪽 게스트 버튼 한 줄 */
+.login-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.login-actions .text-btn {
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .box-title {
