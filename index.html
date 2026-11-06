@@ -19,7 +19,10 @@
         <button id="tabLogin" class="selected" onclick="setLoginTab('login')">로그인</button>
         <button id="tabRegister" onclick="setLoginTab('register')">회원가입</button>
       </div>
-      <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100">
+      <div class="input-row">
+        <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100" oninput="usernameChanged()">
+        <button type="button" id="idCheckBtn" class="small-btn code-btn hidden" onclick="checkUsername()">중복확인</button>
+      </div>
       <div id="loginEmailRow" class="input-row hidden">
         <input type="email" id="loginEmail" placeholder="이메일" maxlength="100">
         <button type="button" class="small-btn code-btn" onclick="sendRegisterCode(this)">인증번호 받기</button>
@@ -111,6 +114,19 @@
       <button id="delBtn" class="big-btn gray" onclick="deleteAccount()">회원탈퇴</button>
     </div>
     <button class="text-btn" onclick="goTitle()">◀ 돌아가기</button>
+  </div>
+
+  <!-- ========== 0-2. 관리자 화면 (아이디 admin) ========== -->
+  <div id="adminScreen" class="screen hidden">
+    <h2 class="screen-title">🛠️ 관리자</h2>
+    <div class="login-tabs admin-tabs">
+      <button id="adminTab_users" onclick="openAdminTab('users')">회원</button>
+      <button id="adminTab_records" onclick="openAdminTab('records')">게임 기록</button>
+      <button id="adminTab_logs" onclick="openAdminTab('logs')">보안 로그</button>
+    </div>
+    <p id="adminMsg" class="form-msg"></p>
+    <div id="adminBody" class="panel admin-panel"></div>
+    <button class="big-btn" onclick="goTitle()">돌아가기</button>
   </div>
 
   <!-- ========== 1. 타이틀 화면 ========== -->

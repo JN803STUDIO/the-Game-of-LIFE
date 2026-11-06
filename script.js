@@ -244,7 +244,7 @@ function floatText(p, text) {
 
 // ----- 화면 전환 -----
 function showScreen(id) {
-  for (const s of ["loginScreen", "accountScreen", "titleScreen", "setupScreen", "gameScreen", "resultScreen", "rankingScreen"]) {
+  for (const s of ["loginScreen", "accountScreen", "adminScreen", "titleScreen", "setupScreen", "gameScreen", "resultScreen", "rankingScreen"]) {
     document.getElementById(s).classList.add("hidden");
   }
   document.getElementById(id).classList.remove("hidden");

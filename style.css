@@ -279,6 +279,50 @@ button {
   font-size: 17px;
 }
 
+/* 관리자 화면 */
+.admin-btn {
+  border-color: #845ef7 !important;
+  color: #6741d9;
+}
+
+.admin-tabs {
+  width: 520px;
+  max-width: 100%;
+  margin: 0 auto 10px;
+  background: white;
+  border-radius: 16px;
+  padding: 4px 10px 0;
+}
+
+.admin-panel {
+  width: 960px;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: 0 auto 12px;
+  overflow: auto;
+  text-align: left;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 6px 8px;
+  border-bottom: 2px solid #f1f3f5;
+  white-space: nowrap;
+}
+
+.admin-table th {
+  position: sticky;
+  top: 0;
+  background: white;
+  color: #1c7ed6;
+}
+
 /* 왼쪽 위 홈 버튼 */
 .home-btn {
   position: absolute;

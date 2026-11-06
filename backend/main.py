@@ -69,6 +69,16 @@ def create_session(db, user_id: int) -> str:
     return token
 
 
+# ----- 관리자 -----
+# 아이디가 admin 인 계정이 관리자예요.
+# 아무나 admin 으로 가입하면 안 되니까, admin 가입은 서버 컴퓨터(localhost)에서만 받아요.
+ADMIN_USERNAME = "admin"
+
+
+def is_admin_name(username: str) -> bool:
+    return username.lower() == ADMIN_USERNAME   # DB 가 대소문자를 안 가려서 Admin 도 같은 아이디
+
+
 # ----- 토큰으로 누가 로그인했는지 찾기 -----
 def get_current_user(authorization: str | None) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
@@ -90,6 +100,14 @@ def get_current_user(authorization: str | None) -> dict:
 
     if user is None:
         raise HTTPException(status_code=401, detail="로그인이 만료됐어요. 다시 로그인해 주세요.")
+    user["is_admin"] = is_admin_name(user["username"])
+    return user
+
+
+def require_admin(authorization: str | None) -> dict:
+    user = get_current_user(authorization)
+    if not user["is_admin"]:
+        raise HTTPException(status_code=403, detail="관리자만 할 수 있어요.")
     return user
 
 
@@ -188,6 +206,10 @@ class LoginIn(BaseModel):
 
 class EmailIn(BaseModel):
     email: str
+
+
+class UsernameIn(BaseModel):
+    username: str
 
 
 class PasswordCodeIn(BaseModel):
@@ -342,10 +364,33 @@ def set_password(db, user_id: int, password: str):
 
 
 def user_json(user: dict) -> dict:
-    return {"id": user["id"], "username": user["username"], "email": user["email"], "nickname": user["nickname"]}
+    return {"id": user["id"], "username": user["username"], "email": user["email"], "nickname": user["nickname"],
+            "is_admin": is_admin_name(user["username"])}
+
+
+def check_new_username(db, username: str, request: Request):
+    """새로 가입할 아이디 검사 (규칙 · admin · 중복)"""
+    check_username(username)
+    if is_admin_name(username) and request.client.host not in ("127.0.0.1", "::1"):
+        fail("admin 아이디는 서버 컴퓨터에서만 만들 수 있어요.", 403)
+    with db.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+        if cur.fetchone():
+            fail("이미 있는 아이디예요.", 409)
 
 
 # ----- 회원가입 -----
+@app.post("/api/check-username")
+def check_username_api(data: UsernameIn, request: Request):
+    """아이디 중복확인"""
+    db = get_db()
+    try:
+        check_new_username(db, data.username.strip(), request)
+    finally:
+        db.close()
+    return {"ok": True}
+
+
 @app.post("/api/email-code")
 def email_code(data: EmailIn):
     """회원가입용 인증번호 보내기"""
@@ -362,7 +407,7 @@ def email_code(data: EmailIn):
 
 
 @app.post("/api/register")
-def register(data: RegisterIn):
+def register(data: RegisterIn, request: Request):
     username = data.username.strip()
     email = data.email.strip().lower()
     nickname = data.nickname.strip()
@@ -373,10 +418,7 @@ def register(data: RegisterIn):
 
     db = get_db()
     try:
-        with db.cursor() as cur:
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-            if cur.fetchone():
-                fail("이미 있는 아이디예요.", 409)
+        check_new_username(db, username, request)
         if email_taken(db, email):
             fail("이미 가입된 이메일이에요.", 409)
         use_code(db, email, "register", data.code)   # 이메일로 받은 인증번호가 맞아야 가입
@@ -390,7 +432,8 @@ def register(data: RegisterIn):
             user_id = cur.lastrowid
 
         token = create_session(db, user_id)
-        return {"token": token, "user": {"id": user_id, "username": username, "email": email, "nickname": nickname}}
+        return {"token": token, "user": {"id": user_id, "username": username, "email": email, "nickname": nickname,
+                                         "is_admin": is_admin_name(username)}}
     finally:
         db.close()
 
@@ -550,7 +593,8 @@ def update_me(data: UpdateMeIn, authorization: str | None = Header(default=None)
             set_password(db, user["id"], data.new_password)
     finally:
         db.close()
-    return {"id": me_now["id"], "username": me_now["username"], "email": email, "nickname": nickname}
+    return {"id": me_now["id"], "username": me_now["username"], "email": email, "nickname": nickname,
+            "is_admin": me_now["is_admin"]}
 
 
 @app.post("/api/me/delete")
@@ -643,6 +687,92 @@ def delete_save(save_id: int, authorization: str | None = Header(default=None)):
     finally:
         db.close()
     return {"ok": True}
+
+
+# ----- 관리자 : 회원 · 게임 기록 · 보안 로그 -----
+def dates_to_text(rows: list, *keys: str) -> list:
+    for row in rows:
+        for key in keys:
+            if row[key] is not None:
+                row[key] = row[key].strftime("%Y-%m-%d %H:%M")
+    return rows
+
+
+@app.get("/api/admin/users")
+def admin_users(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT u.id, u.username, u.nickname, u.email, u.created_at, "
+                "(SELECT COUNT(*) FROM records r WHERE r.user_id = u.id) AS plays, "
+                "(SELECT COUNT(*) FROM game_saves g WHERE g.user_id = u.id) AS saves "
+                "FROM users u ORDER BY u.id DESC"
+            )
+            rows = cur.fetchall()
+    finally:
+        db.close()
+    return dates_to_text(rows, "created_at")
+
+
+@app.post("/api/admin/users/{user_id}/delete")
+def admin_delete_user(user_id: int, authorization: str | None = Header(default=None)):
+    admin = require_admin(authorization)
+    if user_id == admin["id"]:
+        fail("관리자 자신은 여기서 지울 수 없어요.")
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))   # 기록 · 저장 · 세션도 같이 지워져요
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.get("/api/admin/records")
+def admin_records(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT r.id, u.username, u.nickname, r.total_money, r.rank_pos, r.player_count, r.job, "
+                "r.game_mode, r.created_at FROM records r JOIN users u ON u.id = r.user_id "
+                "ORDER BY r.id DESC LIMIT 200"
+            )
+            rows = cur.fetchall()
+    finally:
+        db.close()
+    return dates_to_text(rows, "created_at")
+
+
+@app.post("/api/admin/records/{record_id}/delete")
+def admin_delete_record(record_id: int, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM records WHERE id = %s", (record_id,))
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.get("/api/admin/security-logs")
+def admin_security_logs(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT l.id, u.username, l.event_type, l.severity, l.reason, l.action_taken, l.created_at "
+                "FROM security_logs l LEFT JOIN users u ON u.id = l.user_id ORDER BY l.id DESC LIMIT 200"
+            )
+            rows = cur.fetchall()
+    finally:
+        db.close()
+    return dates_to_text(rows, "created_at")
 
 
 # ----- 보안 로그 남기기 -----

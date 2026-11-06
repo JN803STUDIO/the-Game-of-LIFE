@@ -12,6 +12,7 @@
 let loginUser = null;      // 로그인한 사람 { id, username, nickname }
 let serverOnline = false;  // 서버 연결 여부
 let loginTab = "login";    // "login" 또는 "register"
+let checkedUsername = "";  // 중복확인을 통과한 아이디 (바꾸면 다시 확인)
 
 
 // ----- 다른 사람이 쓴 글자를 안전하게 바꾸기 -----
@@ -98,6 +99,7 @@ function setLoginTab(tab) {
     document.getElementById(id).classList.toggle("hidden", tab == "login");
   }
   document.getElementById("findLinks").classList.toggle("hidden", tab == "register");
+  document.getElementById("idCheckBtn").classList.toggle("hidden", tab == "login");
   const idBox = document.getElementById("loginId");
   if (tab == "login") {
     document.getElementById("loginBtn").textContent = "로그인";
@@ -109,6 +111,24 @@ function setLoginTab(tab) {
     idBox.maxLength = 30;
   }
   setMsg("loginMsg", "");
+}
+
+
+// ----- 아이디 중복확인 -----
+function usernameChanged() {
+  checkedUsername = "";   // 아이디를 고치면 다시 확인해야 해요
+}
+
+async function checkUsername() {
+  const username = document.getElementById("loginId").value.trim();
+  try {
+    await callApi("POST", "/check-username", { username: username });
+    checkedUsername = username;
+    setMsg("loginMsg", "✅ 쓸 수 있는 아이디예요!", true);
+  } catch (e) {
+    checkedUsername = "";
+    setMsg("loginMsg", e.message);
+  }
 }
 
 
@@ -156,6 +176,10 @@ async function submitLogin() {
   const password2 = document.getElementById("loginPw2").value;
   const code = document.getElementById("loginCode").value;
 
+  if (loginTab == "register" && username.trim() != checkedUsername) {
+    setMsg("loginMsg", "아이디 중복확인을 해 주세요.");
+    return;
+  }
   if (loginTab == "register" && password != password2) {
     setMsg("loginMsg", "비밀번호가 서로 달라요. 다시 확인해 주세요.");
     return;
@@ -179,6 +203,12 @@ async function submitLogin() {
 function playAsGuest() {
   loginUser = null;
   goTitle();
+}
+
+// 게스트 → 로그인 화면으로 돌아가기
+function goLogin() {
+  setLoginTab("login");
+  showScreen("loginScreen");
 }
 
 async function logout() {
@@ -356,11 +386,13 @@ async function deleteAccount() {
 function drawUserBar() {
   const bar = document.getElementById("userBar");
   if (loginUser != null) {
-    bar.innerHTML = "👤 " + safeText(loginUser.nickname) + "님 " +
+    let admin = "";
+    if (loginUser.is_admin) admin = '<button class="small-btn admin-btn" onclick="openAdmin()">🛠️ 관리자</button> ';
+    bar.innerHTML = "👤 " + safeText(loginUser.nickname) + "님 " + admin +
                     '<button class="small-btn" onclick="openAccount()">내 정보</button> ' +
                     '<button class="small-btn" onclick="logout()">로그아웃</button>';
   } else {
-    bar.innerHTML = "👤 게스트";
+    bar.innerHTML = '👤 게스트 <button class="small-btn" onclick="goLogin()">로그인 / 회원가입</button>';
   }
 }
 
@@ -374,6 +406,81 @@ function goTitle() {
     drawSetup();
   }
   showScreen("titleScreen");
+}
+
+
+// ----- 관리자 화면 (회원 · 게임 기록 · 보안 로그) -----
+let adminTab = "users";
+
+function openAdmin() {
+  showScreen("adminScreen");
+  openAdminTab("users");
+}
+
+async function openAdminTab(tab) {
+  adminTab = tab;
+  for (const t of ["users", "records", "logs"]) {
+    document.getElementById("adminTab_" + t).classList.toggle("selected", t == tab);
+  }
+  setMsg("adminMsg", "");
+  const body = document.getElementById("adminBody");
+  body.innerHTML = "불러오는 중...";
+  const urls = { users: "/admin/users", records: "/admin/records", logs: "/admin/security-logs" };
+  try {
+    const rows = await callApi("GET", urls[tab]);
+    if (rows.length == 0) {
+      body.innerHTML = "아직 없어요.";
+      return;
+    }
+    if (tab == "users") body.innerHTML = adminTable(["번호", "아이디", "닉네임", "이메일", "가입일", "판 수", "저장", ""], rows, function (r) {
+      let del = { html: '<button class="small-btn save-del" onclick="adminDelete(\'users\', ' + r.id + ', this)">삭제</button>' };
+      if (r.id == loginUser.id) del = "(나)";
+      return [r.id, r.username, r.nickname, r.email, r.created_at, r.plays, r.saves, del];
+    });
+    else if (tab == "records") body.innerHTML = adminTable(["번호", "아이디", "총자산", "등수", "직업", "모드", "날짜", ""], rows, function (r) {
+      return [r.id, r.username, r.total_money + "만원", r.rank_pos + "/" + r.player_count, r.job, r.game_mode, r.created_at,
+              { html: '<button class="small-btn save-del" onclick="adminDelete(\'records\', ' + r.id + ', this)">삭제</button>' }];
+    });
+    else body.innerHTML = adminTable(["번호", "아이디", "종류", "위험도", "이유", "처리", "날짜"], rows, function (r) {
+      return [r.id, r.username || "-", r.event_type, r.severity, r.reason, r.action_taken, r.created_at];
+    });
+  } catch (e) {
+    body.innerHTML = "";
+    setMsg("adminMsg", e.message);
+  }
+}
+
+// 표 만들기 (cells 함수가 한 줄의 칸들을 돌려줌)
+// 버튼처럼 우리가 만든 HTML 은 { html: ... } 로, 나머지(회원이 쓴 글자)는 전부 safeText 로
+function adminTable(heads, rows, cells) {
+  let html = '<table class="admin-table"><tr>';
+  for (const h of heads) html += "<th>" + h + "</th>";
+  html += "</tr>";
+  for (const r of rows) {
+    html += "<tr>";
+    for (const c of cells(r)) {
+      if (c != null && c.html != undefined) html += "<td>" + c.html + "</td>";
+      else html += "<td>" + safeText(String(c == null ? "" : c)) + "</td>";
+    }
+    html += "</tr>";
+  }
+  return html + "</table>";
+}
+
+// 삭제는 두 번 눌러야
+async function adminDelete(kind, id, btn) {
+  if (btn.dataset.sure != "1") {
+    btn.dataset.sure = "1";
+    btn.textContent = "정말?";
+    return;
+  }
+  try {
+    await callApi("POST", "/admin/" + kind + "/" + id + "/delete");
+    await openAdminTab(adminTab);
+    setMsg("adminMsg", "지웠어요.", true);
+  } catch (e) {
+    setMsg("adminMsg", e.message);
+  }
 }
 
 
