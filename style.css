@@ -186,10 +186,64 @@ button {
   display: none;
 }
 
-#loginMsg {
+/* 입력칸 + 오른쪽 작은 버튼 (인증번호 받기) */
+.input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.code-btn {
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.code-btn:disabled {
+  color: #adb5bd;
+  cursor: default;
+}
+
+.find-links {
+  color: #ced4da;
+  font-size: 15px;
+}
+
+.find-links .text-btn {
+  color: #868e96;
+  font-size: 15px;
+}
+
+.box-title {
+  margin: 0 0 6px;
+  color: #1c7ed6;
+}
+
+.box-title.danger {
+  color: #e03131;
+}
+
+.box-help {
+  margin: 4px 0 8px;
+  color: #868e96;
+  font-size: 14px;
+}
+
+/* 오류는 빨강, 성공은 초록 */
+.form-msg {
   min-height: 20px;
   color: #e03131;
   font-size: 15px;
+}
+
+.form-msg.ok {
+  color: #2f9e44;
 }
 
 #userBar {

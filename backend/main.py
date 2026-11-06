@@ -12,6 +12,8 @@ import json
 import os
 import re
 import secrets
+import smtplib
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Literal
 
@@ -77,7 +79,7 @@ def get_current_user(authorization: str | None) -> dict:
     try:
         with db.cursor() as cur:
             cur.execute(
-                "SELECT u.id, u.username, u.nickname FROM sessions s "
+                "SELECT u.id, u.username, u.email, u.nickname FROM sessions s "
                 "JOIN users u ON u.id = s.user_id "
                 "WHERE s.token = %s AND (s.expires_at IS NULL OR s.expires_at > NOW())",
                 (token,),
@@ -91,11 +93,90 @@ def get_current_user(authorization: str | None) -> dict:
     return user
 
 
+# ----- 메일 보내기 -----
+# .env 에 SMTP 설정이 없으면 (테스트 모드) 메일 대신 서버 창에 내용을 찍어요.
+def send_mail(to: str, subject: str, body: str):
+    host = os.getenv("SMTP_HOST")
+    if not host:
+        print(f"\n[메일 테스트 모드] 받는 사람: {to}\n제목: {subject}\n{body}\n", flush=True)
+        return
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER")
+    msg["To"] = to
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as smtp:
+            smtp.starttls()
+            smtp.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD"))
+            smtp.send_message(msg)
+    except (smtplib.SMTPException, OSError):
+        raise HTTPException(status_code=502, detail="메일을 보내지 못했어요. 잠시 후 다시 해 주세요.")
+
+
+# ----- 이메일 인증번호 -----
+CODE_MINUTES = 10   # 인증번호 유효 시간 (분)
+CODE_TRIES = 5      # 틀려도 되는 횟수
+CODE_TITLES = {"register": "회원가입", "change": "이메일 변경", "reset": "비밀번호 찾기"}
+
+
+def hash_code(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+def send_code(db, email: str, purpose: str):
+    with db.cursor() as cur:
+        # 1분에 한 번만 보내기 (메일 폭탄 막기)
+        cur.execute(
+            "SELECT id FROM email_codes WHERE email = %s AND purpose = %s AND created_at > NOW() - INTERVAL 1 MINUTE",
+            (email, purpose),
+        )
+        if cur.fetchone():
+            fail("인증번호는 1분에 한 번만 받을 수 있어요. 잠시 후 다시 눌러 주세요.", 429)
+
+        code = f"{secrets.randbelow(1000000):06d}"
+        cur.execute("DELETE FROM email_codes WHERE email = %s AND purpose = %s", (email, purpose))
+        cur.execute(
+            "INSERT INTO email_codes (email, purpose, code_hash, expires_at) VALUES (%s, %s, %s, NOW() + INTERVAL %s MINUTE)",
+            (email, purpose, hash_code(code), CODE_MINUTES),
+        )
+    send_mail(
+        email,
+        f"[인생게임] {CODE_TITLES[purpose]} 인증번호",
+        f"인증번호는 {code} 예요.\n{CODE_MINUTES}분 안에 입력해 주세요.\n직접 요청하지 않았다면 이 메일은 무시하세요.",
+    )
+
+
+def use_code(db, email: str, purpose: str, code: str):
+    """인증번호가 맞으면 지우고 통과, 틀리면 상황에 맞는 오류"""
+    code = code.strip()
+    if not code:
+        fail("인증번호를 입력해 주세요.")
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT id, code_hash, tries, expires_at < NOW() AS expired FROM email_codes "
+            "WHERE email = %s AND purpose = %s",
+            (email, purpose),
+        )
+        row = cur.fetchone()
+        if row is None:
+            fail("인증번호를 먼저 받아 주세요.")
+        if row["expired"]:
+            fail("인증번호 시간이 지났어요. 다시 받아 주세요.")
+        if row["tries"] >= CODE_TRIES:
+            fail("인증번호를 너무 많이 틀렸어요. 다시 받아 주세요.")
+        if not hmac.compare_digest(hash_code(code), row["code_hash"]):
+            cur.execute("UPDATE email_codes SET tries = tries + 1 WHERE id = %s", (row["id"],))
+            fail("인증번호가 틀렸어요.")
+        cur.execute("DELETE FROM email_codes WHERE id = %s", (row["id"],))
+
+
 # ----- 요청으로 받을 데이터 모양 -----
-# 길이 · 글자 검사는 register() 안에서 상황마다 다른 메시지로 해요
+# 길이 · 글자 검사는 각 API 안에서 상황마다 다른 메시지로 해요
 class RegisterIn(BaseModel):
     username: str
     email: str
+    code: str = ""
     password: str
     nickname: str
 
@@ -103,6 +184,34 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     username: str = Field(max_length=100)   # 아이디 또는 이메일
     password: str = Field(max_length=50)
+
+
+class EmailIn(BaseModel):
+    email: str
+
+
+class PasswordCodeIn(BaseModel):
+    username: str
+    email: str
+
+
+class PasswordResetIn(BaseModel):
+    username: str
+    email: str
+    code: str
+    new_password: str
+
+
+class UpdateMeIn(BaseModel):
+    current_password: str
+    nickname: str | None = None
+    email: str | None = None
+    code: str = ""
+    new_password: str | None = None
+
+
+class DeleteMeIn(BaseModel):
+    password: str
 
 
 class RecordIn(BaseModel):
@@ -149,9 +258,13 @@ def health():
     return {"ok": True}
 
 
-# ----- 회원가입 입력 검사 -----
+# ----- 입력 검사 (틀리면 상황에 맞는 메시지) -----
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9]+$")                               # 영문 · 숫자만
 EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+
+
+def fail(message: str, status: int = 400):
+    raise HTTPException(status_code=status, detail=message)
 
 
 def email_domain_exists(domain: str) -> bool:
@@ -169,66 +282,111 @@ def email_domain_exists(domain: str) -> bool:
     return False
 
 
-def check_register(data: RegisterIn):
-    def fail(message):
-        raise HTTPException(status_code=400, detail=message)
-
-    if not data.username:
+def check_username(username: str):
+    if not username:
         fail("아이디를 입력해 주세요.")
-    if not USERNAME_PATTERN.match(data.username):
+    if not USERNAME_PATTERN.match(username):
         fail("아이디는 영문과 숫자만 쓸 수 있어요. (한글, 특수문자, 띄어쓰기 안 돼요)")
-    if not 3 <= len(data.username) <= 30:
+    if not 3 <= len(username) <= 30:
         fail("아이디는 3~30자로 만들어 주세요.")
 
-    if not data.email:
+
+def check_email(email: str):
+    if not email:
         fail("이메일을 입력해 주세요.")
-    if len(data.email) > 100 or not EMAIL_PATTERN.match(data.email):
+    if len(email) > 100 or not EMAIL_PATTERN.match(email):
         fail("이메일 형식이 아니에요. (예: name@example.com)")
-    if not email_domain_exists(data.email.split("@")[1]):
+    if not email_domain_exists(email.split("@")[1]):
         fail("존재하지 않는 이메일 주소예요. @ 뒤의 주소를 확인해 주세요.")
 
-    if not data.password:
-        fail("비밀번호를 입력해 주세요.")
-    if not 4 <= len(data.password) <= 50:
-        fail("비밀번호는 4~50자로 만들어 주세요.")
 
-    if not data.nickname:
+def check_password(password: str, label: str = "비밀번호"):
+    if not password:
+        fail(label + "를 입력해 주세요.")
+    if not 4 <= len(password) <= 50:
+        fail(label + "는 4~50자로 만들어 주세요.")
+
+
+def check_nickname(nickname: str):
+    if not nickname:
         fail("닉네임을 입력해 주세요.")
-    if len(data.nickname) > 20:
+    if len(nickname) > 20:
         fail("닉네임은 20자까지 쓸 수 있어요.")
+
+
+def email_taken(db, email: str) -> bool:
+    with db.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+        return cur.fetchone() is not None
+
+
+def password_ok(user: dict, password: str) -> bool:
+    # compare_digest = 해킹에 안전한 비교
+    return hmac.compare_digest(hash_password(password, user["salt"]), user["password_hash"])
+
+
+def set_password(db, user_id: int, password: str):
+    salt = secrets.token_hex(16)
+    with db.cursor() as cur:
+        cur.execute("UPDATE users SET password_hash = %s, salt = %s WHERE id = %s",
+                    (hash_password(password, salt), salt, user_id))
+
+
+def user_json(user: dict) -> dict:
+    return {"id": user["id"], "username": user["username"], "email": user["email"], "nickname": user["nickname"]}
+
+
+# ----- 회원가입 -----
+@app.post("/api/email-code")
+def email_code(data: EmailIn):
+    """회원가입용 인증번호 보내기"""
+    email = data.email.strip().lower()
+    check_email(email)
+    db = get_db()
+    try:
+        if email_taken(db, email):
+            fail("이미 가입된 이메일이에요.", 409)
+        send_code(db, email, "register")
+    finally:
+        db.close()
+    return {"ok": True}
 
 
 @app.post("/api/register")
 def register(data: RegisterIn):
-    data.username = data.username.strip()
-    data.email = data.email.strip()
-    data.nickname = data.nickname.strip()
-    check_register(data)
+    username = data.username.strip()
+    email = data.email.strip().lower()
+    nickname = data.nickname.strip()
+    check_username(username)
+    check_email(email)
+    check_password(data.password)
+    check_nickname(nickname)
 
     db = get_db()
     try:
         with db.cursor() as cur:
-            email = data.email.lower()
-            cur.execute("SELECT id FROM users WHERE username = %s", (data.username,))
+            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="이미 있는 아이디예요.")
-            cur.execute("SELECT id FROM users WHERE email = %s", (email,))
-            if cur.fetchone():
-                raise HTTPException(status_code=409, detail="이미 가입된 이메일이에요.")
+                fail("이미 있는 아이디예요.", 409)
+        if email_taken(db, email):
+            fail("이미 가입된 이메일이에요.", 409)
+        use_code(db, email, "register", data.code)   # 이메일로 받은 인증번호가 맞아야 가입
 
-            salt = secrets.token_hex(16)
+        salt = secrets.token_hex(16)
+        with db.cursor() as cur:
             cur.execute(
                 "INSERT INTO users (username, email, password_hash, salt, nickname) VALUES (%s, %s, %s, %s, %s)",
-                (data.username, email, hash_password(data.password, salt), salt, data.nickname),
+                (username, email, hash_password(data.password, salt), salt, nickname),
             )
             user_id = cur.lastrowid
 
         token = create_session(db, user_id)
-        return {"token": token, "user": {"id": user_id, "username": data.username, "nickname": data.nickname}}
+        return {"token": token, "user": {"id": user_id, "username": username, "email": email, "nickname": nickname}}
     finally:
         db.close()
 
 
+# ----- 로그인 / 로그아웃 -----
 @app.post("/api/login")
 def login(data: LoginIn):
     db = get_db()
@@ -236,17 +394,16 @@ def login(data: LoginIn):
         with db.cursor() as cur:
             # @ 가 있으면 이메일로, 없으면 아이디로 찾기
             if "@" in data.username:
-                cur.execute("SELECT * FROM users WHERE email = %s", (data.username.lower(),))
+                cur.execute("SELECT * FROM users WHERE email = %s", (data.username.strip().lower(),))
             else:
-                cur.execute("SELECT * FROM users WHERE username = %s", (data.username,))
+                cur.execute("SELECT * FROM users WHERE username = %s", (data.username.strip(),))
             user = cur.fetchone()
 
-        # 비밀번호 비교 (compare_digest = 해킹에 안전한 비교)
-        if user is None or not hmac.compare_digest(hash_password(data.password, user["salt"]), user["password_hash"]):
-            raise HTTPException(status_code=401, detail="아이디(이메일) 또는 비밀번호가 틀렸어요.")
+        if user is None or not password_ok(user, data.password):
+            fail("아이디(이메일) 또는 비밀번호가 틀렸어요.", 401)
 
         token = create_session(db, user["id"])
-        return {"token": token, "user": {"id": user["id"], "username": user["username"], "nickname": user["nickname"]}}
+        return {"token": token, "user": user_json(user)}
     finally:
         db.close()
 
@@ -264,6 +421,138 @@ def logout(authorization: str | None = Header(default=None)):
     try:
         with db.cursor() as cur:
             cur.execute("DELETE FROM sessions WHERE token = %s AND user_id = %s", (token, user["id"]))
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+# ----- 아이디 찾기 / 비밀번호 찾기 -----
+@app.post("/api/find-id")
+def find_id(data: EmailIn):
+    """가입한 이메일로 아이디를 보내 줘요"""
+    email = data.email.strip().lower()
+    if not email:
+        fail("이메일을 입력해 주세요.")
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT username FROM users WHERE email = %s", (email,))
+            user = cur.fetchone()
+    finally:
+        db.close()
+    if user is None:
+        fail("가입되지 않은 이메일이에요.", 404)
+    send_mail(email, "[인생게임] 아이디 찾기", f"가입하신 아이디는 {user['username']} 예요.")
+    return {"ok": True}
+
+
+def find_user_by_id_email(db, username: str, email: str) -> dict:
+    if not username:
+        fail("아이디를 입력해 주세요.")
+    if not email:
+        fail("이메일을 입력해 주세요.")
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM users WHERE username = %s AND email = %s", (username, email))
+        user = cur.fetchone()
+    if user is None:
+        fail("아이디와 이메일이 맞지 않아요.", 404)
+    return user
+
+
+@app.post("/api/password-code")
+def password_code(data: PasswordCodeIn):
+    """비밀번호 찾기용 인증번호 보내기"""
+    email = data.email.strip().lower()
+    db = get_db()
+    try:
+        find_user_by_id_email(db, data.username.strip(), email)
+        send_code(db, email, "reset")
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.post("/api/password-reset")
+def password_reset(data: PasswordResetIn):
+    email = data.email.strip().lower()
+    db = get_db()
+    try:
+        user = find_user_by_id_email(db, data.username.strip(), email)
+        check_password(data.new_password, "새 비밀번호")   # 인증번호를 쓰기 전에 검사 (틀려도 다시 시도할 수 있게)
+        use_code(db, email, "reset", data.code)
+        set_password(db, user["id"], data.new_password)
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM sessions WHERE user_id = %s", (user["id"],))   # 다른 곳 로그인은 끊기
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+# ----- 내 정보 수정 / 회원탈퇴 (현재 비밀번호 확인 필요) -----
+def load_user_with_password(db, user_id: int, password: str) -> dict:
+    if not password:
+        fail("현재 비밀번호를 입력해 주세요.")
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+    if not password_ok(user, password):
+        fail("현재 비밀번호가 틀렸어요.", 401)
+    return user
+
+
+@app.post("/api/me/email-code")
+def me_email_code(data: EmailIn, authorization: str | None = Header(default=None)):
+    """이메일 바꿀 때 새 이메일로 인증번호 보내기"""
+    user = get_current_user(authorization)
+    email = data.email.strip().lower()
+    if email == user["email"]:
+        fail("지금 쓰고 있는 이메일이에요.")
+    check_email(email)
+    db = get_db()
+    try:
+        if email_taken(db, email):
+            fail("이미 가입된 이메일이에요.", 409)
+        send_code(db, email, "change")
+    finally:
+        db.close()
+    return {"ok": True}
+
+
+@app.post("/api/me/update")
+def update_me(data: UpdateMeIn, authorization: str | None = Header(default=None)):
+    me_now = get_current_user(authorization)
+    nickname = data.nickname.strip() if data.nickname is not None else me_now["nickname"]
+    email = data.email.strip().lower() if data.email is not None else me_now["email"]
+    check_nickname(nickname)
+    if data.new_password:
+        check_password(data.new_password, "새 비밀번호")
+
+    db = get_db()
+    try:
+        user = load_user_with_password(db, me_now["id"], data.current_password)
+        if email != user["email"]:
+            check_email(email)
+            if email_taken(db, email):
+                fail("이미 가입된 이메일이에요.", 409)
+            use_code(db, email, "change", data.code)
+        with db.cursor() as cur:
+            cur.execute("UPDATE users SET nickname = %s, email = %s WHERE id = %s", (nickname, email, user["id"]))
+        if data.new_password:
+            set_password(db, user["id"], data.new_password)
+    finally:
+        db.close()
+    return {"id": me_now["id"], "username": me_now["username"], "email": email, "nickname": nickname}
+
+
+@app.post("/api/me/delete")
+def delete_me(data: DeleteMeIn, authorization: str | None = Header(default=None)):
+    me_now = get_current_user(authorization)
+    db = get_db()
+    try:
+        load_user_with_password(db, me_now["id"], data.password)
+        with db.cursor() as cur:
+            # 세션 · 기록 · 이어하기는 FOREIGN KEY ... ON DELETE CASCADE 로 같이 지워져요
+            cur.execute("DELETE FROM users WHERE id = %s", (me_now["id"],))
     finally:
         db.close()
     return {"ok": True}

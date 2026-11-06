@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 이메일 인증번호 (회원가입 · 이메일 변경 · 비밀번호 찾기)
+CREATE TABLE IF NOT EXISTS email_codes (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  email      VARCHAR(100) NOT NULL,
+  purpose    ENUM('register','change','reset') NOT NULL,
+  code_hash  CHAR(64)     NOT NULL,                -- 인증번호도 그대로 저장 안 함
+  tries      TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- 틀린 횟수
+  expires_at DATETIME     NOT NULL,
+  created_at DATETIME     DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_email_codes (email, purpose)
+);
+
 -- 게임 기록
 CREATE TABLE IF NOT EXISTS records (
   id           INT AUTO_INCREMENT PRIMARY KEY,

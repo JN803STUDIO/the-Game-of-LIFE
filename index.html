@@ -13,26 +13,102 @@
   <!-- ========== 0. 로그인 화면 ========== -->
   <div id="loginScreen" class="screen">
     <img class="logo small-logo" src="assets/ui/logo.svg" alt="인생게임">
-    <div class="login-box">
+    <!-- 로그인 / 회원가입 -->
+    <div id="loginForm" class="login-box">
       <div class="login-tabs">
         <button id="tabLogin" class="selected" onclick="setLoginTab('login')">로그인</button>
         <button id="tabRegister" onclick="setLoginTab('register')">회원가입</button>
       </div>
       <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100">
-      <input type="email" id="loginEmail" class="hidden" placeholder="이메일" maxlength="100">
+      <div id="loginEmailRow" class="input-row hidden">
+        <input type="email" id="loginEmail" placeholder="이메일" maxlength="100">
+        <button type="button" class="small-btn code-btn" onclick="sendRegisterCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="loginCode" class="hidden" placeholder="이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
       <div class="pw-box">
         <input type="password" id="loginPw" placeholder="비밀번호" maxlength="50">
-        <button type="button" class="eye-btn" onclick="togglePw('loginPw', this)" aria-label="비밀번호 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><line class="eye-slash" x1="4" y1="20" x2="20" y2="4"/></svg></button>
       </div>
       <div id="loginPw2Box" class="pw-box hidden">
         <input type="password" id="loginPw2" placeholder="비밀번호 확인" maxlength="50">
-        <button type="button" class="eye-btn" onclick="togglePw('loginPw2', this)" aria-label="비밀번호 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><line class="eye-slash" x1="4" y1="20" x2="20" y2="4"/></svg></button>
       </div>
       <input type="text" id="loginNick" class="hidden" placeholder="닉네임" maxlength="20">
-      <p id="loginMsg"></p>
+      <p id="loginMsg" class="form-msg"></p>
       <button id="loginBtn" class="big-btn" onclick="submitLogin()">로그인</button>
+      <div id="findLinks" class="find-links">
+        <button class="text-btn" onclick="openFind('findIdBox')">아이디 찾기</button>
+        <span>|</span>
+        <button class="text-btn" onclick="openFind('findPwBox')">비밀번호 찾기</button>
+      </div>
       <button class="text-btn" onclick="playAsGuest()">게스트로 플레이 ▶</button>
     </div>
+
+    <!-- 아이디 찾기 -->
+    <div id="findIdBox" class="login-box hidden">
+      <h3 class="box-title">아이디 찾기</h3>
+      <p class="box-help">가입할 때 쓴 이메일로 아이디를 보내 드려요.</p>
+      <input type="email" id="findIdEmail" placeholder="가입한 이메일" maxlength="100">
+      <p id="findIdMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="findId()">아이디 받기</button>
+      <button class="text-btn" onclick="closeFind()">◀ 로그인으로</button>
+    </div>
+
+    <!-- 비밀번호 찾기 -->
+    <div id="findPwBox" class="login-box hidden">
+      <h3 class="box-title">비밀번호 찾기</h3>
+      <p class="box-help">아이디와 가입한 이메일을 넣으면 인증번호를 보내 드려요.</p>
+      <input type="text" id="findPwId" placeholder="아이디" maxlength="30">
+      <div class="input-row">
+        <input type="email" id="findPwEmail" placeholder="가입한 이메일" maxlength="100">
+        <button type="button" class="small-btn code-btn" onclick="sendResetCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="findPwCode" placeholder="이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
+      <div class="pw-box">
+        <input type="password" id="findPwNew" placeholder="새 비밀번호" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="findPwNew2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <p id="findPwMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="resetPassword()">비밀번호 바꾸기</button>
+      <button class="text-btn" onclick="closeFind()">◀ 로그인으로</button>
+    </div>
+  </div>
+
+  <!-- ========== 0-1. 내 정보 화면 (정보 수정 · 회원탈퇴) ========== -->
+  <div id="accountScreen" class="screen hidden">
+    <h2 class="screen-title">내 정보</h2>
+    <div class="login-box">
+      <h3 class="box-title">정보 수정</h3>
+      <p class="box-help">아이디 : <b id="accId"></b> (아이디는 바꿀 수 없어요)</p>
+      <input type="text" id="accNick" placeholder="닉네임" maxlength="20">
+      <div class="input-row">
+        <input type="email" id="accEmail" placeholder="이메일" maxlength="100" oninput="accEmailChanged()">
+        <button type="button" id="accCodeBtn" class="small-btn code-btn hidden" onclick="sendChangeCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="accCode" class="hidden" placeholder="새 이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
+      <div class="pw-box">
+        <input type="password" id="accNewPw" placeholder="새 비밀번호 (바꿀 때만)" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="accNewPw2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="accPw" placeholder="현재 비밀번호 (꼭 입력)" maxlength="50">
+      </div>
+      <p id="accMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="saveAccount()">저장하기</button>
+    </div>
+
+    <div class="login-box">
+      <h3 class="box-title danger">회원탈퇴</h3>
+      <p class="box-help">탈퇴하면 게임 기록과 저장한 게임이 모두 지워지고 되돌릴 수 없어요.</p>
+      <div class="pw-box">
+        <input type="password" id="delPw" placeholder="현재 비밀번호" maxlength="50">
+      </div>
+      <p id="delMsg" class="form-msg"></p>
+      <button id="delBtn" class="big-btn gray" onclick="deleteAccount()">회원탈퇴</button>
+    </div>
+    <button class="text-btn" onclick="goTitle()">◀ 돌아가기</button>
   </div>
 
   <!-- ========== 1. 타이틀 화면 ========== -->
