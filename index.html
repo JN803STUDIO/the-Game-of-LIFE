@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인생게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== 0. 로그인 화면 ========== -->
+  <div id="loginScreen" class="screen">
+    <img class="logo small-logo" src="assets/ui/logo.svg" alt="인생게임">
+    <!-- 로그인 / 회원가입 -->
+    <div id="loginForm" class="login-box">
+      <div class="login-tabs">
+        <button id="tabLogin" class="selected" onclick="setLoginTab('login')">로그인</button>
+        <button id="tabRegister" onclick="setLoginTab('register')">회원가입</button>
+      </div>
+      <div class="input-row">
+        <input type="text" id="loginId" placeholder="아이디 또는 이메일" maxlength="100" oninput="usernameChanged()">
+        <button type="button" id="idCheckBtn" class="small-btn code-btn hidden" onclick="checkUsername()">중복확인</button>
+      </div>
+      <div id="loginEmailRow" class="input-row hidden">
+        <input type="email" id="loginEmail" placeholder="이메일" maxlength="100">
+        <button type="button" class="small-btn code-btn" onclick="sendRegisterCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="loginCode" class="hidden" placeholder="이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
+      <div class="pw-box">
+        <input type="password" id="loginPw" placeholder="비밀번호" maxlength="50">
+      </div>
+      <div id="loginPw2Box" class="pw-box hidden">
+        <input type="password" id="loginPw2" placeholder="비밀번호 확인" maxlength="50">
+      </div>
+      <input type="text" id="loginNick" class="hidden" placeholder="닉네임" maxlength="20">
+      <div id="findLinks" class="find-links">
+        <button class="text-btn" onclick="openFind('findIdBox')">아이디 찾기</button>
+        <span>|</span>
+        <button class="text-btn" onclick="openFind('findPwBox')">비밀번호 찾기</button>
+      </div>
+      <p id="loginMsg" class="form-msg"></p>
+      <div class="login-actions">
+        <button id="loginBtn" class="big-btn" onclick="submitLogin()">로그인</button>
+        <button class="text-btn" onclick="playAsGuest()">게스트로 플레이 ▶</button>
+      </div>
+    </div>
+
+    <!-- 아이디 찾기 -->
+    <div id="findIdBox" class="login-box hidden">
+      <h3 class="box-title">아이디 찾기</h3>
+      <p class="box-help">가입할 때 쓴 이메일로 아이디를 보내 드려요.</p>
+      <input type="email" id="findIdEmail" placeholder="가입한 이메일" maxlength="100">
+      <p id="findIdMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="findId()">아이디 받기</button>
+      <button class="text-btn" onclick="closeFind()">◀ 로그인으로</button>
+    </div>
+
+    <!-- 비밀번호 찾기 -->
+    <div id="findPwBox" class="login-box hidden">
+      <h3 class="box-title">비밀번호 찾기</h3>
+      <p class="box-help">아이디와 가입한 이메일을 넣으면 인증번호를 보내 드려요.</p>
+      <input type="text" id="findPwId" placeholder="아이디" maxlength="30">
+      <div class="input-row">
+        <input type="email" id="findPwEmail" placeholder="가입한 이메일" maxlength="100">
+        <button type="button" class="small-btn code-btn" onclick="sendResetCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="findPwCode" placeholder="이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
+      <div class="pw-box">
+        <input type="password" id="findPwNew" placeholder="새 비밀번호" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="findPwNew2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <p id="findPwMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="resetPassword()">비밀번호 바꾸기</button>
+      <button class="text-btn" onclick="closeFind()">◀ 로그인으로</button>
+    </div>
+  </div>
+
+  <!-- ========== 0-1. 내 정보 화면 (정보 수정 · 회원탈퇴) ========== -->
+  <div id="accountScreen" class="screen hidden">
+    <h2 class="screen-title">내 정보</h2>
+    <div class="login-box">
+      <h3 class="box-title">정보 수정</h3>
+      <p class="box-help">아이디 : <b id="accId"></b> (아이디는 바꿀 수 없어요)</p>
+      <input type="text" id="accNick" placeholder="닉네임" maxlength="20">
+      <div class="input-row">
+        <input type="email" id="accEmail" placeholder="이메일" maxlength="100" oninput="accEmailChanged()">
+        <button type="button" id="accCodeBtn" class="small-btn code-btn hidden" onclick="sendChangeCode(this)">인증번호 받기</button>
+      </div>
+      <input type="text" id="accCode" class="hidden" placeholder="새 이메일로 받은 인증번호 6자리" maxlength="6" inputmode="numeric">
+      <div class="pw-box">
+        <input type="password" id="accNewPw" placeholder="새 비밀번호 (바꿀 때만)" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="accNewPw2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="accPw" placeholder="현재 비밀번호 (꼭 입력)" maxlength="50">
+      </div>
+      <p id="accMsg" class="form-msg"></p>
+      <button class="big-btn" onclick="saveAccount()">저장하기</button>
+    </div>
+
+    <div class="login-box">
+      <h3 class="box-title danger">회원탈퇴</h3>
+      <p class="box-help">탈퇴하면 게임 기록과 저장한 게임이 모두 지워지고 되돌릴 수 없어요.</p>
+      <div class="pw-box">
+        <input type="password" id="delPw" placeholder="현재 비밀번호" maxlength="50">
+      </div>
+      <p id="delMsg" class="form-msg"></p>
+      <button id="delBtn" class="big-btn gray" onclick="deleteAccount()">회원탈퇴</button>
+    </div>
+    <button class="text-btn" onclick="goTitle()">◀ 돌아가기</button>
+  </div>
+
+  <!-- ========== 0-2. 관리자 화면 (아이디 admin) ========== -->
+  <div id="adminScreen" class="screen hidden">
+    <h2 class="screen-title">🛠️ 관리자</h2>
+    <div class="login-tabs admin-tabs">
+      <button id="adminTab_users" onclick="openAdminTab('users')">회원</button>
+      <button id="adminTab_records" onclick="openAdminTab('records')">게임 기록</button>
+      <button id="adminTab_logs" onclick="openAdminTab('logs')">보안 로그</button>
+      <button id="adminTab_adminlogs" onclick="openAdminTab('adminlogs')">관리 기록</button>
+    </div>
+    <p id="adminMsg" class="form-msg"></p>
+
+    <!-- 회원 비밀번호 바꾸기 (표에서 "비번 변경" 누르면 열림) -->
+    <div id="adminPwBox" class="login-box hidden">
+      <h3 class="box-title"><span id="adminPwTarget"></span> 비밀번호 바꾸기</h3>
+      <p class="box-help">원래 비밀번호는 되돌릴 수 없게 저장돼서 볼 수 없어요. 새 비밀번호를 정해 주세요.<br>바꾸면 그 회원은 다시 로그인해야 하고, 관리 기록에 남아요.</p>
+      <div class="pw-box">
+        <input type="password" id="adminNewPw" placeholder="새 비밀번호" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="adminNewPw2" placeholder="새 비밀번호 확인" maxlength="50">
+      </div>
+      <div class="pw-box">
+        <input type="password" id="adminMyPw" placeholder="관리자(내) 비밀번호 한 번 더" maxlength="50">
+      </div>
+      <p id="adminPwMsg" class="form-msg"></p>
+      <div class="login-actions">
+        <button class="big-btn" onclick="adminResetPassword()">바꾸기</button>
+        <button class="text-btn" onclick="closeAdminPw()">취소</button>
+      </div>
+    </div>
+    <div id="adminBody" class="panel admin-panel"></div>
+    <button class="big-btn" onclick="goTitle()">돌아가기</button>
+  </div>
+
+  <!-- ========== 0-3. 온라인 대전 : 방 만들기 · 참가 (팀원 pront 브랜치 html1Index 디자인) ========== -->
+  <div id="roomScreen" class="screen hidden room-ui">
+    <main class="card">
+      <a class="back-link" href="#" onclick="showScreen('titleScreen'); return false;">← 처음으로</a>
+      <h1 class="title">인생게임</h1>
+      <p class="subtitle">the Game of LIFE</p>
+
+      <!-- ① 방 만들기 -->
+      <section class="section">
+        <h2>방 만들기</h2>
+        <p class="hint">새 방을 만들고, 4자리 방 코드를 친구에게 알려주세요.</p>
+        <button id="createRoomBtn" class="btn btn-primary" type="button" onclick="netCreateRoom()">방 만들기</button>
+      </section>
+
+      <hr class="divider">
+
+      <!-- ② 방 참가하기 -->
+      <section class="section">
+        <h2>방 참가하기</h2>
+        <p class="hint">친구에게 받은 4자리 방 코드를 입력하세요.</p>
+        <input id="roomCodeInput" class="code-input" type="text"
+               maxlength="4" inputmode="numeric" autocomplete="off"
+               placeholder="1234" aria-label="방 코드 입력">
+        <button id="joinRoomBtn" class="btn btn-secondary" type="button" onclick="netJoinRoom()">참가하기</button>
+      </section>
+      <p id="roomMsg" class="form-msg"></p>
+    </main>
+  </div>
+
+  <!-- ========== 0-4. 대기실 (팀원 pront 브랜치 html2Lobby 디자인) ========== -->
+  <div id="lobbyScreen" class="screen hidden room-ui">
+    <main class="card">
+      <a class="back-link" href="#" onclick="netLeave(); return false;">← 처음으로</a>
+      <h1 class="title">대기실</h1>
+
+      <!-- ① 방 코드 -->
+      <section class="room-code-box">
+        <p class="room-code-label">방 코드</p>
+        <p id="roomCodeText" class="room-code">----</p>
+      </section>
+
+      <!-- 추가 : 들어온 사람 -->
+      <section class="section">
+        <h2>들어온 사람 (최대 4명)</h2>
+        <div id="lobbyMembers" class="choice-row character-row"></div>
+      </section>
+
+      <!-- ② 선택 결과 미리보기 -->
+      <section class="section">
+        <h2>내 캐릭터</h2>
+        <div id="previewEmoji" class="preview-emoji" aria-hidden="true"></div>
+        <p id="previewText" class="preview-text" aria-live="polite"></p>
+        <input id="lobbyName" class="code-input name-input" type="text" maxlength="6" placeholder="이름 (6자까지)" oninput="netMeChanged()">
+      </section>
+
+      <!-- ③ 성별 선택 -->
+      <section class="section">
+        <h2>성별 선택</h2>
+        <div class="choice-row gender-row">
+          <button class="choice-btn gender-btn" type="button" data-gender="M" onclick="netSetMe('gender', 'M')">남자</button>
+          <button class="choice-btn gender-btn" type="button" data-gender="F" onclick="netSetMe('gender', 'F')">여자</button>
+        </div>
+      </section>
+
+      <!-- ④ 캐릭터 선택 (우리 게임 캐릭터 4개) -->
+      <section class="section">
+        <h2>캐릭터 선택</h2>
+        <div id="lobbyChars" class="choice-row character-row"></div>
+        <!-- 추가 : + 버튼으로 내 사진을 캐릭터로 -->
+        <button id="lobbyPhotoBtn" class="choice-btn photo-btn" type="button" onclick="netChoosePhoto()">+ 내 사진으로 캐릭터 만들기</button>
+        <input type="file" id="lobbyPhotoInput" class="hidden" accept="image/*" onchange="netLoadPhoto()">
+      </section>
+
+      <!-- 추가 : 게임 모드 (방장만 바꿀 수 있어요) -->
+      <section class="section">
+        <h2>게임 모드</h2>
+        <div id="lobbyModes" class="choice-row mode-row"></div>
+      </section>
+
+      <!-- ⑤ 게임 시작 -->
+      <p id="lobbyWait" class="hint"></p>
+      <p id="lobbyMsg" class="form-msg"></p>
+      <button id="startGameBtn" class="btn btn-primary start-btn" type="button" onclick="netStart()">게임 시작</button>
+    </main>
+  </div>
+
+  <!-- ========== 1. 타이틀 화면 ========== -->
+  <div id="titleScreen" class="screen hidden">
+    <div id="userBar"></div>
+    <img id="logoImg" class="logo" alt="인생게임">
+    <p class="subtitle">아기부터 노년까지, 당신의 인생은 어떻게 될까요?</p>
+    <div id="titleChars"></div>
+    <button class="big-btn" onclick="showScreen('setupScreen')">게임 시작</button>
+    <button class="big-btn blue" onclick="openRanking()">🏆 랭킹</button>
+    <button class="big-btn green" onclick="openRooms()">🌐 온라인 대전</button>
+    <!-- 저장한 게임 목록 (많으면 스크롤) -->
+    <div id="saveBox" class="save-box hidden">
+      <h3>💾 이어하기</h3>
+      <div id="saveList"></div>
+    </div>
+  </div>
+
+  <!-- ========== 2. 플레이어 설정 화면 ========== -->
+  <div id="setupScreen" class="screen hidden">
+    <button class="small-btn home-btn" onclick="showScreen('titleScreen')">🏠 홈</button>
+    <h2 class="screen-title">플레이어 설정</h2>
+    <div id="modeBox"></div>
+    <div class="count-btns">
+      <span class="setup-label">👤 사람</span>
+      <button id="count1" onclick="setPlayerCount(1)">1명</button>
+      <button id="count2" onclick="setPlayerCount(2)">2명</button>
+      <button id="count3" onclick="setPlayerCount(3)">3명</button>
+      <button id="count4" onclick="setPlayerCount(4)">4명</button>
+    </div>
+    <div id="botBox"></div>
+    <div id="slots"></div>
+    <input type="file" id="photoInput" class="hidden" accept="image/*" onchange="loadPhoto()">
+    <button class="big-btn" onclick="startGame()">인생 시작!</button>
+  </div>
+
+  <!-- ========== 3. 게임 화면 ========== -->
+  <div id="gameScreen" class="hidden">
+    <!-- 지도 (스크롤 가능) -->
+    <div id="mapArea">
+      <div id="mapWrap">
+        <div id="map"></div>
+      </div>
+      <!-- 지도 위 상태바 (왼쪽 위 : 지금 차례인 사람, 오른쪽 위 : 턴) -->
+      <div id="hud"></div>
+      <div id="turnHud"></div>
+
+      <!-- 왼쪽 아래 메뉴 (닌텐도 인생게임처럼) -->
+      <div id="menu">
+        <button id="spinBtn" class="menu-btn" onclick="spin()">🎡 룰렛</button>
+        <button id="cardMenuBtn" class="menu-btn" onclick="openPanel('card')">🎴 카드</button>
+        <button class="menu-btn" onclick="openPanel('status')">📋 상태</button>
+        <button class="menu-btn" onclick="openPanel('etc')">⚙️ 기타</button>
+        <button class="menu-btn" onclick="openPanel('game')">☰ 메뉴</button>
+      </div>
+      <button id="zoomBtn" class="map-btn" onclick="toggleZoom()">🗺️ 전체 지도</button>
+
+      <!-- 메뉴 창 (카드 / 상태 / 기타) -->
+      <div id="menuPanel" class="hidden"></div>
+    </div>
+
+    <!-- 오른쪽 패널 -->
+    <div id="side">
+      <div class="panel" id="turnPanel">
+        <div id="turnInfo">
+          <img id="turnImg" alt="">
+          <div id="turnName"></div>
+        </div>
+        <div id="wheelBox">
+          <div id="pointer"></div>
+          <img id="wheelImg" alt="룰렛">
+        </div>
+        <div id="rollText"></div>
+      </div>
+
+      <div class="panel">
+        <h3>플레이어</h3>
+        <div id="playerList"></div>
+      </div>
+
+      <div class="panel">
+        <h3>칸 설명</h3>
+        <div id="legend"></div>
+      </div>
+
+      <div class="panel">
+        <h3>기록</h3>
+        <ul id="log"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 4. 결과 화면 ========== -->
+  <div id="resultScreen" class="screen hidden">
+    <h2 class="screen-title">📜 인생 보고서</h2>
+    <div id="ranking"></div>
+    <p id="saveMsg" class="rule"></p>
+    <button class="big-btn" onclick="location.reload()">다시 하기</button>
+  </div>
+
+  <!-- ========== 랭킹 화면 ========== -->
+  <div id="rankingScreen" class="screen hidden">
+    <h2 class="screen-title">🏆 명예의 전당</h2>
+    <div id="rankingList" class="panel ranking-panel"></div>
+    <button class="big-btn" onclick="showScreen('titleScreen')">돌아가기</button>
+  </div>
+
+  <!-- ========== 팝업 창 ========== -->
+  <div id="popup" class="hidden">
+    <div class="popup-card">
+      <img id="popupImg" alt="">
+      <h2 id="popupTitle"></h2>
+      <div id="popupText"></div>
+      <div id="popupButtons"></div>
+    </div>
+  </div>
+
+  <!-- ========== 미니게임 창 ========== -->
+  <div id="mini" class="hidden">
+    <div class="popup-card mini-card">
+      <h2 id="miniTitle"></h2>
+      <div id="miniBody"></div>
+    </div>
+  </div>
+
+  <!-- ========== 확률 룰렛 창 (X 실패 / O 성공 / ◎ 대성공) ========== -->
+  <div id="chance" class="hidden">
+    <div class="popup-card chance-card">
+      <h2 id="chanceTitle"></h2>
+      <div id="chanceText"></div>
+      <div class="wheel-wrap">
+        <div class="wheel-pointer"></div>
+        <div id="chanceWheel"></div>
+      </div>
+      <div id="chanceResult"></div>
+      <button id="chanceBtn" class="big-btn">룰렛 돌리기!</button>
+    </div>
+  </div>
+
+  <!-- 배경음악 / 효과음 켜기 · 끄기 (모든 화면 오른쪽 아래) -->
+  <div id="soundBox">
+    <button id="musicBtn" onclick="toggleMusic()">🎵</button>
+    <button id="sfxBtn" onclick="toggleSound()">🔊</button>
+  </div>
+
+  <!-- 순서 중요! 데이터 -> 서버 연결 -> 소리 -> 게임 -->
+  <script src="map.js"></script>
+  <script src="events.js"></script>
+  <script src="api.js"></script>
+  <script src="sound.js"></script>
+  <!-- 온라인 대전 : 위쪽 방 정보 줄 / 안내 (각자 따로, 같이 보기에서 빠짐) -->
+  <div id="netBar" class="hidden"></div>
+  <div id="netToast" class="hidden"></div>
+
+  <script src="script.js"></script>
+  <script src="net.js"></script>
+</body>
+</html>
