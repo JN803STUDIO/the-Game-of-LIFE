@@ -270,7 +270,11 @@ app = FastAPI(title="인생게임 서버")
 async def hide_backend_folder(request: Request, call_next):
     if request.url.path.startswith("/backend"):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
-    return await call_next(request)
+    response = await call_next(request)
+    # 브라우저가 예전 js · css 를 기억해서 새 화면과 섞이지 않게, 매번 바뀌었는지 확인하게 하기
+    if not request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 # 입력값이 잘못됐을 때 한국어 메시지
